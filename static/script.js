@@ -1525,7 +1525,7 @@ async function reloadBadgeList() {
 let statsChart = null; // Chart.js instance
 
 // 날짜별 이력 계산
-// Returns: { dates: [], totalPts: [], seasonScores: [], totalPtRanks: [], seasonScoreRanks: [] }
+// Returns: { dates: [], totalPts: [], totalPtRanks: [] }
 function calculateDailyHistory(targetName) {
   // 1. 모든 게임(일반 + 대회)을 시간순 정렬
   let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
@@ -1537,14 +1537,6 @@ function calculateDailyHistory(targetName) {
   // 날짜별 스냅샷
   let history = [];
 
-  // 헬퍼: 현재 상태에서 시즌 스코어 계산
-  const getSeasonScore = (s) => {
-    if (!s) return 0;
-    const tJoin = s.tournament ? s.tournament.join : 0;
-    const tSum = s.tournament ? s.tournament.sum : 0;
-    return calculateSeasonScore(s.total_pt, s.games, tJoin, tSum).sum;
-  };
-
   // 게임 순회
   let currentDate = null;
 
@@ -1555,7 +1547,7 @@ function calculateDailyHistory(targetName) {
 
     if (currentDate && currentDate !== dateStr) {
       // 날짜가 바뀌기 직전 스냅샷 저장
-      snapshot(history, currentDate, stats, targetName, getSeasonScore);
+      snapshot(history, currentDate, stats, targetName);
     }
     currentDate = dateStr;
 
@@ -1590,14 +1582,14 @@ function calculateDailyHistory(targetName) {
 
   // 마지막 날짜 스냅샷
   if (currentDate) {
-    snapshot(history, currentDate, stats, targetName, getSeasonScore);
+    snapshot(history, currentDate, stats, targetName);
   }
 
   return history;
 }
 
 // 스냅샷 저장 헬퍼
-function snapshot(history, date, stats, targetName, scoreFn) {
+function snapshot(history, date, stats, targetName) {
   if (!stats[targetName]) {
     // 아직 데뷔 전이면 0으로라도 기록? 아니면 기록 없음?
     // 그래프 연결을 위해 0으로 기록하는게 나을 수 있음.
@@ -1612,16 +1604,10 @@ function snapshot(history, date, stats, targetName, scoreFn) {
   players.sort((a, b) => stats[b].total_pt - stats[a].total_pt);
   let ptRank = players.indexOf(targetName) + 1;
 
-  // 2. Season Score Rank
-  players.sort((a, b) => scoreFn(stats[b]) - scoreFn(stats[a]));
-  let seasonRank = players.indexOf(targetName) + 1;
-
   history.push({
     date: date,
     total_pt: stats[targetName].total_pt,
-    season_score: scoreFn(stats[targetName]),
     pt_rank: ptRank,
-    season_rank: seasonRank,
     total_players: players.length // 전체 플레이어 수 저장
   });
 }
@@ -1723,28 +1709,9 @@ function renderHistoryGraph(targetName, range) {
           pointRadius: 3
         },
         {
-          label: '시즌 pt',
-          data: data.map(h => h.season_score),
-          borderColor: '#4dd2a6',
-          backgroundColor: '#4dd2a6',
-          yAxisID: 'y',
-          tension: 0.1,
-          pointRadius: 3
-        },
-        {
           label: '총 pt 등수',
           data: data.map(h => h.pt_rank),
           borderColor: '#ff6b81',
-          borderDash: [5, 5],
-          yAxisID: 'y1',
-          tension: 0.1,
-          pointRadius: 0,
-          hidden: true
-        },
-        {
-          label: '시즌 등수',
-          data: data.map(h => h.season_rank),
-          borderColor: '#ffb142',
           borderDash: [5, 5],
           yAxisID: 'y1',
           tension: 0.1,
