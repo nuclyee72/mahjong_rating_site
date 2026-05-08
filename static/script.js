@@ -879,7 +879,7 @@ function renderArchiveRecentRankTrend(targetName, limit = 10) {
   if (!ctx) return;
 
   let all = [...CURRENT_ARCHIVE_GAMES];
-  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  all.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
   const myGames = [];
   for (const g of all) {
@@ -1031,14 +1031,13 @@ function renderArchiveGameIdPtChart(targetName, limit = 10) {
 }
 
 function calculateArchiveDailyHistory(targetName) {
-  let all = [...CURRENT_ARCHIVE_GAMES].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  let all = [...CURRENT_ARCHIVE_GAMES].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   let stats = {};
   let history = [];
   let currentDate = null;
 
   all.forEach(game => {
-    const d = new Date(game.created_at);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = String(game.created_at).split(/[T ]/)[0];
     if (currentDate && currentDate !== dateStr) snapshotArchive(history, currentDate, stats, targetName);
     currentDate = dateStr;
 
@@ -1098,7 +1097,7 @@ function renderArchiveHistoryGraph(name, range = "week") {
     const match = fullHistory.find(h => h.date === dateStr);
     if (match) lastState = match;
     if (lastState) data.push({ ...lastState, date: dateStr });
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   let maxRank = 10;
@@ -1529,7 +1528,7 @@ let statsChart = null; // Chart.js instance
 function calculateDailyHistory(targetName) {
   // 1. 모든 게임(일반 + 대회)을 시간순 정렬
   let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
-  all.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  all.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
   // 플레이어별 상태 추적
   let stats = {};
@@ -1542,8 +1541,7 @@ function calculateDailyHistory(targetName) {
 
   all.forEach(game => {
     // 날짜 체크 (YYYY-MM-DD)
-    const d = new Date(game.created_at);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = String(game.created_at).split(/[T ]/)[0];
 
     if (currentDate && currentDate !== dateStr) {
       // 날짜가 바뀌기 직전 스냅샷 저장
@@ -1679,7 +1677,7 @@ function renderHistoryGraph(targetName, range) {
       data.push({ ...lastState, date: dateStr });
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   // y1 축 범위 설정을 위한 최대 등수 계산 (해당 기간 내 최대 참여 인원수)
@@ -1939,7 +1937,7 @@ function renderRecentRankTrend(targetName, limit = 10) {
 
   // 플레이어 게임 데이터 추출 (최신순)
   let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
-  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  all.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
   const myGames = [];
   for (const g of all) {
