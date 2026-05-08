@@ -15,7 +15,7 @@ def get_config():
         return json.load(f)
 
 DB_PATH = os.path.join(BASE_DIR, "games.db")
-CLUB_NAME = "그릴마당"  # 동아리 이름 (변경 가능)
+CLUB_NAME = "<동아리명>"  # 동아리 이름 (변경 가능)
 
 # 마작 포인트 계산용 설정은 config.json에서 관리합니다.
 
