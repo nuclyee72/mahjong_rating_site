@@ -1,6 +1,6 @@
 {
-  "name": "그릴마당",
-  "short_name": "그릴마당",
+  "name": "<동아리명>",
+  "short_name": "<동아리명>",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
