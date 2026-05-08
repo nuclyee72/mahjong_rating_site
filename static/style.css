@@ -456,8 +456,7 @@ th.sortable.sorted-asc {
 .ranking-table,
 #ranking-table,
 #archive-ranking-table,
-#tournament-ranking-table,
-#season-ranking-table {
+#tournament-ranking-table {
   font-size: 13px;
   table-layout: fixed;
   width: 100%;
@@ -586,49 +585,7 @@ th.sortable.sorted-asc {
   text-decoration: underline;
 }
 
-/* ==================== 시즌 랭킹 테이블 ==================== */
-#season-ranking-table th:nth-child(1),
-#season-ranking-table td:nth-child(1) {
-  width: 8%;
-}
-
-#season-ranking-table th:nth-child(2),
-#season-ranking-table td:nth-child(2) {
-  width: 18%;
-}
-
-#season-ranking-table th:nth-child(3),
-#season-ranking-table td:nth-child(3) {
-  width: 18%;
-}
-
-#season-ranking-table th:nth-child(4),
-#season-ranking-table td:nth-child(4) {
-  width: 18%;
-}
-
-#season-ranking-table th:nth-child(5),
-#season-ranking-table td:nth-child(5) {
-  width: 20%;
-}
-
-#season-ranking-table th:nth-child(6),
-#season-ranking-table td:nth-child(6) {
-  width: 18%;
-}
-
-#season-ranking-table td {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#season-ranking-table td:nth-child(n+3) {
-  font-variant-numeric: tabular-nums;
-}
-
-#ranking-pt-wrap,
-#ranking-season-wrap {
+#ranking-pt-wrap {
   min-height: 320px;
 }
 
@@ -686,11 +643,7 @@ th.sortable.sorted-asc {
     /* 모바일에서 조금만 축소 */
   }
 
-  #season-ranking-table th,
-  #season-ranking-table td {
-    font-size: 10px;
-    padding: 1px 2px;
-  }
+
 
   .col-time-hide {
     display: none;
