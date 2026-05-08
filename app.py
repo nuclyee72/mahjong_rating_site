@@ -277,7 +277,7 @@ def export_games():
         csv_bytes,
         mimetype="text/csv; charset=cp949",
         headers={
-            "Content-Disposition": "attachment; filename=madang_majhong_rating.csv"
+            "Content-Disposition": "attachment; filename=mahjong_rating.csv"
         },
     )
 
@@ -1185,7 +1185,7 @@ def export_tournament_games():
         csv_bytes,
         mimetype="text/csv; charset=cp949",
         headers={
-            "Content-Disposition": "attachment; filename=madang_mahjong_tournament.csv"
+            "Content-Disposition": "attachment; filename=mahjong_tournament.csv"
         },
     )
 

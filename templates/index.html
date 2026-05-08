@@ -63,7 +63,6 @@
       <button class="view-switch-btn" data-view="archive">아카이브</button>
       <button class="view-switch-btn" data-view="admin">관리자 기능</button>
     </div>
-    <a href="/" class="btn-link" style="margin-left: 8px; flex-shrink: 0;">홈으로</a>
   </div>
 
   <!-- ================= 개인 레이팅 화면 ================= -->
@@ -141,7 +140,7 @@
       <div class="right-panel">
         <section class="ranking-panel">
           <div class="ranking-header">
-            <h2 id="ranking-title" class="ranking-title" title="클릭하면 시즌 pt로 바뀝니다">전체 등수</h2>
+            <h2>전체 등수</h2>
             <div class="rank-legend">
               <span class="legend-color legend1"></span><span class="legend-text">1등</span>
               <span class="legend-color legend2"></span><span class="legend-text">2등</span>
@@ -180,27 +179,6 @@
               </table>
             </div>
           </div>
-
-          <!-- ✅ (B) 신규: 시즌 pt 표 (처음엔 숨김) -->
-          <div id="ranking-season-wrap" style="display:none;">
-            <div class="table-scroll">
-              <table id="season-ranking-table" class="ranking-table">
-                <thead>
-                  <tr>
-                    <th>순위</th>
-                    <th>이름</th>
-                    <th>총 pt 변환</th>
-                    <th>대국 수 변환</th>
-                    <th>대회 총 변환</th>
-                    <th>시즌 pt</th>
-                  </tr>
-                </thead>
-                <tbody id="season-ranking-tbody"></tbody>
-              </table>
-            </div>
-          </div>
-
-
 
 
         </section>
@@ -734,16 +712,6 @@
   </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
-  <script>
-    document.querySelectorAll('a[href="/"]').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const target = this.getAttribute('href');
-        document.body.classList.add('slide-down-exit');
-        setTimeout(() => { window.location.href = target; }, 230);
-      });
-    });
-  </script>
 </body>
 
 </html>
