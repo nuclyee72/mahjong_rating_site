@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ club_name }} 마작 레이팅</title>
+
+  <!-- 파비콘 및 모바일 홈 화면 아이콘 -->
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icon.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    window.GAME_CONFIG = {
+      start_score: Number('{{ config.MAHJONG_CONFIG.START_SCORE }}'),
+      return_score: Number('{{ config.MAHJONG_CONFIG.RETURN_SCORE }}'),
+      uma: JSON.parse('{{ config.MAHJONG_CONFIG.UMA | tojson }}'),
+      oka: Number('{{ config.MAHJONG_CONFIG.OKA_TO_1ST }}')
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+  <!-- 커스텀 확인 모달 (confirm() 대체) -->
+  <div id="confirm-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:9999; align-items:flex-start; justify-content:center; padding-top:15vh;">
+    <div
+      style="background:#fff; border-radius:12px; padding:24px 28px; max-width:340px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <p id="confirm-modal-text" style="margin:0 0 20px 0; font-size:14px; line-height:1.6; color:#333;"></p>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="confirm-modal-cancel"
+          style="padding:6px 16px; border-radius:6px; border:1px solid #ccc; background:#f5f5f5; cursor:pointer; font-size:13px;">취소</button>
+        <button id="confirm-modal-ok"
+          style="padding:6px 16px; border-radius:6px; border:none; background:#e05050; color:#fff; cursor:pointer; font-size:13px; font-weight:600;">삭제</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    function showConfirm(message, onOk) {
+      const modal = document.getElementById('confirm-modal');
+      document.getElementById('confirm-modal-text').textContent = message;
+      modal.style.display = 'flex';
+      const ok = document.getElementById('confirm-modal-ok');
+      const cancel = document.getElementById('confirm-modal-cancel');
+      const close = () => { modal.style.display = 'none'; ok.onclick = null; cancel.onclick = null; };
+      ok.onclick = () => { close(); onOk(); };
+      cancel.onclick = close;
+    }
+  </script>
+
+  <!-- 상단 헤더: 왼쪽 제목 / 오른쪽 뷰 전환 -->
+  <div class="top-bar">
+    <h1>{{ club_name }}<br class="mobile-br"> 마작 레이팅</h1>
+    <div class="view-switch">
+      <button class="view-switch-btn active" data-view="personal">개인 레이팅</button>
+      <button class="view-switch-btn" data-view="stats">개인별 통계</button>
+      <button class="view-switch-btn" data-view="tournament">대회 전용</button>
+      <button class="view-switch-btn" data-view="archive">아카이브</button>
+      <button class="view-switch-btn" data-view="admin">관리자 기능</button>
+    </div>
+    <a href="/" class="btn-link" style="margin-left: 8px; flex-shrink: 0;">홈으로</a>
+  </div>
+
+  <!-- ================= 개인 레이팅 화면 ================= -->
+  <div id="personal-view" class="view">
+    <div class="main-layout equal-layout">
+      <!-- 왼쪽: 입력 + 게임 데이터 + 규칙 -->
+      <div class="left-panel">
+        <!-- 입력 폼 -->
+        <section class="form-panel">
+          <h2>대국 기록 입력</h2>
+          <form id="game-form" method="post" autocomplete="off">
+            <div class="row">
+              <label>P1(동)</label>
+              <input name="player1_name" placeholder="플레이어 1 이름" required>
+              <input name="player1_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P2(남)</label>
+              <input name="player2_name" placeholder="플레이어 2 이름" required>
+              <input name="player2_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P3(서)</label>
+              <input name="player3_name" placeholder="플레이어 3 이름" required>
+              <input name="player3_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P4(북)</label>
+              <input name="player4_name" placeholder="플레이어 4 이름" required>
+              <input name="player4_score" type="text" placeholder="pt" required>
+            </div>
+            <button type="submit">저장</button>
+          </form>
+        </section>
+
+        <!-- 대국 기록 + CSV -->
+        <section class="games-panel">
+          <div class="games-header">
+            <h2>대국 기록</h2>
+            <div class="games-header-right">
+              <a href="/export" class="export-link">CSV 내보내기</a>
+              <a href="/import" class="import-link">CSV 가져오기</a>
+            </div>
+          </div>
+
+          <table class="games-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>시간</th>
+                <th>P1</th>
+                <th>P2</th>
+                <th>P3</th>
+                <th>P4</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="games-tbody">
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 룰 안내 -->
+        <section class="rule-panel">
+          <h2>레이팅전 규칙</h2>
+          <ul>
+            {% for rule in config.RULES_PERSONAL %}
+            <li>{{ rule }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+
+      <!-- 오른쪽: 개인 전체 등수 -->
+      <div class="right-panel">
+        <section class="ranking-panel">
+          <div class="ranking-header">
+            <h2 id="ranking-title" class="ranking-title" title="클릭하면 시즌 pt로 바뀝니다">전체 등수</h2>
+            <div class="rank-legend">
+              <span class="legend-color legend1"></span><span class="legend-text">1등</span>
+              <span class="legend-color legend2"></span><span class="legend-text">2등</span>
+              <span class="legend-color legend3"></span><span class="legend-text">3등</span>
+              <span class="legend-color legend4"></span><span class="legend-text">4등</span>
+            </div>
+          </div>
+
+          <div id="ranking-pt-wrap">
+            <div class="table-scroll">
+              <table id="ranking-table" class="ranking-table">
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>이름</th>
+                    <th class="sortable" data-sort-key="games">
+                      대국 수
+                    </th>
+                    <th class="sortable" data-sort-key="total_pt">
+                      총 pt
+                    </th>
+                    <th class="sortable" data-sort-key="avg_pt">
+                      평균 pt
+                    </th>
+                    <th class="sortable" data-sort-key="yonde_rate">
+                      연대율
+                    </th>
+                    <th>등수 분포</th>
+                  </tr>
+                </thead>
+                <tbody id="ranking-tbody">
+                  <tr>
+                    <td colspan="7" class="ranking-placeholder">통계 없음</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ✅ (B) 신규: 시즌 pt 표 (처음엔 숨김) -->
+          <div id="ranking-season-wrap" style="display:none;">
+            <div class="table-scroll">
+              <table id="season-ranking-table" class="ranking-table">
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>이름</th>
+                    <th>총 pt 변환</th>
+                    <th>대국 수 변환</th>
+                    <th>대회 총 변환</th>
+                    <th>시즌 pt</th>
+                  </tr>
+                </thead>
+                <tbody id="season-ranking-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+
+
+
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 개인별 통계 화면 ================= -->
+  <div id="stats-view" class="view" style="display:none;">
+    <div class="main-layout">
+      <div class="left-panel">
+
+        <!-- (2) 개인별 통계 + (3) 총 등수 통계 병합 -->
+        <section class="stats-panel">
+          <h2>개인별 통계</h2>
+          <div class="stats-player-select">
+            <label for="stats-player-select">플레이어 선택</label>
+            <select id="stats-player-select">
+              <option value="">플레이어를 선택하세요</option>
+            </select>
+          </div>
+          <div id="stats-summary" class="stats-summary">
+            <p class="hint-text">플레이어를 선택하세요</p>
+          </div>
+
+          <div id="stats-rank-section" style="display:none;">
+            <hr class="stats-divider" style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+              <h3 style="margin: 0;">총 등수 통계</h3>
+              <span id="stats-avg-rank" style="font-weight: normal; font-size: 0.85em; color: #666;">평균 등수: -</span>
+            </div>
+            <div id="stats-rank-dist" class="stats-rank-dist"></div>
+            <div id="stats-rank-numbers" class="stats-rank-numbers"></div>
+
+            <hr class="stats-divider" style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+            <h3>보유 뱃지</h3>
+            <div id="stats-badges" class="badge-list">
+              <p class="hint-text">뱃지 없음</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- (4) 개인 대국 기록 -->
+        <section id="stats-games-section" class="stats-panel" style="display:none;">
+          <h3>개인 대국 기록</h3>
+          <table class="games-table">
+            <thead>
+              <tr>
+                <th class="col-time-hide">시간</th>
+                <th>P1</th>
+                <th>P2</th>
+                <th>P3</th>
+                <th>P4</th>
+              </tr>
+            </thead>
+            <tbody id="stats-player-games-tbody">
+              <tr>
+                <td colspan="5" class="ranking-placeholder">
+                  플레이어를 선택하면 기록이 표시됩니다
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <div class="right-panel">
+        <section id="stats-daily-section" class="stats-panel" style="display:none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <h3 style="margin: 0;">최근 대국 이력 (등수 및 pt)</h3>
+            <div class="chart-filters">
+              <button class="combined-filter-btn active" data-limit="10">최근 10국</button>
+              <button class="combined-filter-btn" data-limit="20">최근 20국</button>
+              <button class="combined-filter-btn" data-limit="50">최근 50국</button>
+              <button class="combined-filter-btn" data-limit="0">전체</button>
+            </div>
+          </div>
+          <div class="chart-container" style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;">
+            <canvas id="stats-rank-trend-chart"></canvas>
+          </div>
+          <div class="chart-container" style="position: relative; height: 260px; width: 100%; margin-bottom: 30px;">
+            <canvas id="stats-gameid-pt-chart"></canvas>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <h3 style="margin: 0;">날짜별 pt 및 등수</h3>
+            <div class="chart-filters">
+              <button class="chart-filter-btn active" data-range="week">최근 1주일</button>
+              <button class="chart-filter-btn" data-range="month">최근 1달</button>
+              <button class="chart-filter-btn" data-range="all">전체</button>
+            </div>
+          </div>
+          <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+            <canvas id="stats-daily-chart"></canvas>
+          </div>
+          <p class="hint-text" id="chart-hint">플레이어를 선택하면 그래프가 표시됩니다.</p>
+        </section>
+
+        <section id="stats-co-section" class="stats-panel" style="display:none;">
+          <h3>같이 한 플레이어별 기록</h3>
+          <table class="stats-co-table">
+            <thead>
+              <tr>
+                <th>플레이어</th>
+                <th>같이 한 대국 수</th>
+                <th>내 평균 등수</th>
+                <th>상대 평균 등수</th>
+              </tr>
+            </thead>
+            <tbody id="stats-co-tbody">
+              <tr>
+                <td colspan="4" class="ranking-placeholder">데이터 없음</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 대회 전용 화면 (개인 레이팅 복제) ================= -->
+  <div id="tournament-view" class="view" style="display:none;">
+    <div class="main-layout equal-layout">
+      <!-- 왼쪽: 입력 + 게임 데이터 + 규칙 -->
+      <div class="left-panel">
+
+        <section class="form-panel">
+          <h2>대회 대국 기록 입력</h2>
+          <form id="tournament-game-form" method="post" autocomplete="off">
+            <div class="row">
+              <label>P1(동)</label>
+              <input name="player1_name" placeholder="플레이어 1 이름" required>
+              <input name="player1_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P2(남)</label>
+              <input name="player2_name" placeholder="플레이어 2 이름" required>
+              <input name="player2_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P3(서)</label>
+              <input name="player3_name" placeholder="플레이어 3 이름" required>
+              <input name="player3_score" type="text" placeholder="pt" required>
+            </div>
+            <div class="row">
+              <label>P4(북)</label>
+              <input name="player4_name" placeholder="플레이어 4 이름" required>
+              <input name="player4_score" type="text" placeholder="pt" required>
+            </div>
+            <button type="submit">저장</button>
+          </form>
+        </section>
+
+        <section class="games-panel">
+          <div class="games-header">
+            <h2>대회 대국 기록</h2>
+            <div class="games-header-right">
+              <a href="/export_tournament" class="export-link">CSV 내보내기</a>
+              <a href="/import_tournament" class="import-link">CSV 가져오기</a>
+            </div>
+          </div>
+
+          <table class="games-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>시간</th>
+                <th>P1</th>
+                <th>P2</th>
+                <th>P3</th>
+                <th>P4</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tournament-games-tbody"></tbody>
+          </table>
+        </section>
+
+        <section class="rule-panel">
+          <h2>대회 규칙</h2>
+          <ul>
+            {% for rule in config.RULES_TOURNAMENT %}
+            <li>{{ rule }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+
+      <!-- 오른쪽: 전체 등수 -->
+      <div class="right-panel">
+        <section class="ranking-panel">
+          <div class="ranking-header">
+            <h2>대회 전체 등수</h2>
+            <div class="rank-legend">
+              <span class="legend-color legend1"></span><span class="legend-text">1등</span>
+              <span class="legend-color legend2"></span><span class="legend-text">2등</span>
+              <span class="legend-color legend3"></span><span class="legend-text">3등</span>
+              <span class="legend-color legend4"></span><span class="legend-text">4등</span>
+            </div>
+          </div>
+
+          <table class="ranking-table">
+            <thead>
+              <tr>
+                <th>순위</th>
+                <th>이름</th>
+                <th>대국 수</th>
+                <th>총 pt</th>
+                <th>평균 pt</th>
+                <th>연대율</th>
+                <th>등수 분포</th>
+              </tr>
+            </thead>
+            <tbody id="tournament-ranking-tbody">
+              <tr>
+                <td colspan="7" class="ranking-placeholder">통계 없음</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= 아카이브 화면 ================= -->
+  <div id="archive-view" class="view" style="display:none;">
+    <div class="main-layout">
+      <!-- 왼쪽: 아카이브 선택 + 대국 기록 -->
+      <div class="left-panel">
+        <section class="stats-panel">
+          <h2>아카이브 선택</h2>
+          <div class="stats-player-select">
+            <label for="archive-select">아카이브</label>
+            <select id="archive-select">
+              <option value="">아카이브를 선택하세요</option>
+            </select>
+          </div>
+          <p class="hint-text">
+            관리자 기능에서 CSV 파일을 업로드해 시즌 아카이브를 등록할 수 있습니다
+          </p>
+        </section>
+
+        <section class="stats-panel">
+          <h3>아카이브 대국 기록</h3>
+          <table class="games-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>시간</th>
+                <th>P1</th>
+                <th>P2</th>
+                <th>P3</th>
+                <th>P4</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="archive-games-tbody">
+              <tr>
+                <td colspan="7" class="ranking-placeholder">아카이브 없음</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- 오른쪽: 전체 등수 (아카이브 기준) / 개인별 통계 -->
+      <div class="right-panel">
+        <section class="ranking-panel">
+          <div class="ranking-header">
+            <h2 id="archive-ranking-title" class="ranking-title" title="클릭하면 개인 통계로 바뀝니다">전체 등수 (아카이브)</h2>
+            <div class="rank-legend">
+              <span class="legend-color legend1"></span><span class="legend-text">1등</span>
+              <span class="legend-color legend2"></span><span class="legend-text">2등</span>
+              <span class="legend-color legend3"></span><span class="legend-text">3등</span>
+              <span class="legend-color legend4"></span><span class="legend-text">4등</span>
+            </div>
+          </div>
+
+          <!-- 전체 등수 테이블 -->
+          <div id="archive-ranking-wrap">
+            <table class="ranking-table" id="archive-ranking-table">
+              <thead>
+                <tr>
+                  <th>순위</th>
+                  <th>이름</th>
+
+                  <th class="sortable" data-sort-key="games">
+                    대국 수
+                  </th>
+
+                  <th class="sortable" data-sort-key="total_pt">
+                    총 pt
+                  </th>
+
+                  <th class="sortable" data-sort-key="avg_pt">
+                    평균 pt
+                  </th>
+
+                  <th class="sortable" data-sort-key="yonde_rate">
+                    연대율
+                  </th>
+
+                  <th>등수 분포</th>
+                </tr>
+              </thead>
+              <tbody id="archive-ranking-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- 개인별 통계 뷰 -->
+          <div id="archive-stats-wrap" style="display:none;">
+            <section class="stats-panel">
+              <div class="stats-player-select">
+                <label for="archive-stats-player-select">플레이어 선택</label>
+                <select id="archive-stats-player-select">
+                  <option value="">플레이어를 선택하세요</option>
+                </select>
+              </div>
+
+              <div id="archive-stats-summary" class="stats-summary">
+                <p class="hint-text">플레이어를 선택하세요.</p>
+              </div>
+
+              <div id="archive-stats-rank-section" style="display:none;">
+                <hr class="stats-divider" style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                  <h3 style="margin: 0;">등수 분포</h3>
+                  <span id="archive-stats-avg-rank" style="font-weight: normal; font-size: 0.85em; color: #666;">평균 등수: -</span>
+                </div>
+                <div id="archive-stats-rank-dist" class="stats-rank-dist"></div>
+              </div>
+            </section>
+
+            <section id="archive-stats-daily-section" class="stats-panel" style="display:none;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0;">최근 대국 이력 (등수 및 pt)</h3>
+                <div class="chart-filters">
+                  <button class="archive-combined-filter-btn active" data-limit="10">최근 10국</button>
+                  <button class="archive-combined-filter-btn" data-limit="20">최근 20국</button>
+                  <button class="archive-combined-filter-btn" data-limit="50">최근 50국</button>
+                  <button class="archive-combined-filter-btn" data-limit="0">전체</button>
+                </div>
+              </div>
+              <div class="chart-container" style="position: relative; height: 180px; width: 100%; margin-bottom: 20px;">
+                <canvas id="archive-stats-rank-trend-chart"></canvas>
+              </div>
+              <div class="chart-container" style="position: relative; height: 260px; width: 100%; margin-bottom: 30px;">
+                <canvas id="archive-stats-gameid-pt-chart"></canvas>
+              </div>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="margin: 0;">날짜별 pt 및 등수</h3>
+                <div class="chart-filters">
+                  <button class="archive-chart-filter-btn active" data-range="week">최근 1주일</button>
+                  <button class="archive-chart-filter-btn" data-range="month">최근 1달</button>
+                  <button class="archive-chart-filter-btn" data-range="all">전체</button>
+                </div>
+              </div>
+              <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                <canvas id="archive-stats-daily-chart"></canvas>
+              </div>
+              <p class="hint-text" id="archive-chart-hint">플레이어를 선택하면 그래프가 표시됩니다.</p>
+            </section>
+
+            <section id="archive-stats-co-section" class="stats-panel" style="display:none;">
+              <h3>같이 한 플레이어별 기록</h3>
+              <table class="stats-co-table">
+                <thead>
+                  <tr>
+                    <th>플레이어</th>
+                    <th>같이 한 대국 수</th>
+                    <th>내 평균 등수</th>
+                    <th>상대 평균 등수</th>
+                  </tr>
+                </thead>
+                <tbody id="archive-stats-co-tbody">
+                  <tr>
+                    <td colspan="4" class="ranking-placeholder">데이터 없음</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section id="archive-stats-games-section" class="stats-panel" style="display:none;">
+              <h3>개인 대국 기록</h3>
+              <table class="games-table">
+                <thead>
+                  <tr>
+                    <th>시간</th>
+                    <th>P1</th>
+                    <th>P2</th>
+                    <th>P3</th>
+                    <th>P4</th>
+                  </tr>
+                </thead>
+                <tbody id="archive-stats-player-games-tbody">
+                  <tr>
+                    <td colspan="5" class="ranking-placeholder">플레이어를 선택하세요.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  <!-- ================= 관리자 기능 화면 ================= -->
+  <div id="admin-view" class="view" style="display:none;">
+    <div class="main-layout">
+      <div class="left-panel">
+        <section class="admin-panel">
+          <section class="admin-panel">
+            <h3>뱃지 CSV 백업 / 복원</h3>
+            <div class="games-header-right">
+              <a href="/export_badges" class="export-link">뱃지 목록 CSV 내보내기</a>
+              <a href="/import_badges" class="import-link">뱃지 목록 가져오기</a>
+            </div>
+            <div class="games-header-right" style="margin-top:6px;">
+              <a href="/export_player_badges" class="export-link">뱃지 부여 CSV 내보내기</a>
+              <a href="/import_player_badges" class="import-link">뱃지 부여 가져오기</a>
+            </div>
+            <p class="hint-text" style="margin-top:6px;">
+              가져오기는 기존 데이터를 모두 삭제하고 새로 덮어쓰는 “대체” 방식입니다.
+            </p>
+          </section>
+
+          <h2 style="cursor:pointer; user-select:none;" onclick="
+            const t = document.getElementById('badge-table-container');
+            const i = document.getElementById('badge-title-icon');
+            if (t.style.display === 'none') {
+              t.style.display = '';
+              i.textContent = '▼';
+            } else {
+              t.style.display = 'none';
+              i.textContent = '▶';
+            }
+          "><span id="badge-title-icon" style="display:inline-block; width:20px; font-size:18px;">▶</span>뱃지 목록</h2>
+          <div id="badge-table-container" style="display:none;">
+            <table class="badge-table">
+              <thead>
+                <tr>
+                  <th>코드</th>
+                  <th>이름</th>
+                  <th>등급</th>
+                  <th>설명</th>
+                </tr>
+              </thead>
+              <tbody id="badge-list-tbody">
+                <tr>
+                  <td colspan="4" class="ranking-placeholder">뱃지 없음</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+
+        <section class="admin-panel">
+          <h3>아카이브 생성 (CSV 가져오기)</h3>
+          <p class="hint-text">
+            한 시즌의 대국 기록이 담긴 CSV 파일을 가져오면<br>
+            새 아카이브로 저장됩니다. (형식은 /export 로 받은 CSV와 동일하면 편해요.)
+          </p>
+          <form id="archive-upload-form" method="post" action="{{ url_for('mahjong.admin_archive_import') }}" enctype="multipart/form-data"
+            autocomplete="off">
+            <div class="form-row">
+              <label>아카이브 이름</label>
+              <input type="text" name="archive_name" placeholder="예: 2024 시즌 1" required>
+            </div>
+            <div class="form-row">
+              <label>CSV 파일</label>
+              <input type="file" name="file" accept=".csv" required>
+            </div>
+            <button type="submit">가져오기</button>
+          </form>
+        </section>
+
+        <section class="admin-panel">
+          <h3>아카이브 목록</h3>
+          <table class="badge-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>생성 시각</th>
+                <th>대국 수</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="archive-list-tbody">
+              <tr>
+                <td colspan="4" class="ranking-placeholder">아카이브 없음</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <div class="right-panel">
+
+
+        <section class="admin-panel">
+          <h3>개인전 기록 초기화</h3>
+          <p class="hint-text">
+            새 시즌 시작 시 사용하세요.<br>
+            모든 개인전 대국 기록이 삭제되며, 되돌릴 수 없습니다.
+          </p>
+          <button id="reset-games-btn" class="danger-btn">개인전 기록 전체 삭제</button>
+        </section>
+
+        <section class="admin-panel">
+          <h3>대회 기록 초기화</h3>
+          <p class="hint-text">
+            모든 대회 대국 기록이 삭제되며, 되돌릴 수 없습니다.
+          </p>
+          <button id="reset-tournament-btn" class="danger-btn">대회 기록 전체 삭제</button>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    document.querySelectorAll('a[href="/"]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = this.getAttribute('href');
+        document.body.classList.add('slide-down-exit');
+        setTimeout(() => { window.location.href = target; }, 230);
+      });
+    });
+  </script>
+</body>
+
+</html>
