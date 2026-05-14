@@ -383,24 +383,26 @@
             </div>
           </div>
 
-          <table class="ranking-table">
-            <thead>
-              <tr>
-                <th>순위</th>
-                <th>이름</th>
-                <th>대국 수</th>
-                <th>총 pt</th>
-                <th>평균 pt</th>
-                <th>연대율</th>
-                <th>등수 분포</th>
-              </tr>
-            </thead>
-            <tbody id="tournament-ranking-tbody">
-              <tr>
-                <td colspan="7" class="ranking-placeholder">통계 없음</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table class="ranking-table">
+              <thead>
+                <tr>
+                  <th>순위</th>
+                  <th>이름</th>
+                  <th>대국 수</th>
+                  <th>총 pt</th>
+                  <th>평균 pt</th>
+                  <th>연대율</th>
+                  <th>등수 분포</th>
+                </tr>
+              </thead>
+              <tbody id="tournament-ranking-tbody">
+                <tr>
+                  <td colspan="7" class="ranking-placeholder">통계 없음</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
     </div>
@@ -463,33 +465,35 @@
 
           <!-- 전체 등수 테이블 -->
           <div id="archive-ranking-wrap">
-            <table class="ranking-table" id="archive-ranking-table">
-              <thead>
-                <tr>
-                  <th>순위</th>
-                  <th>이름</th>
+            <div class="table-scroll">
+              <table class="ranking-table" id="archive-ranking-table">
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>이름</th>
 
-                  <th class="sortable" data-sort-key="games">
-                    대국 수
-                  </th>
+                    <th class="sortable" data-sort-key="games">
+                      대국 수
+                    </th>
 
-                  <th class="sortable" data-sort-key="total_pt">
-                    총 pt
-                  </th>
+                    <th class="sortable" data-sort-key="total_pt">
+                      총 pt
+                    </th>
 
-                  <th class="sortable" data-sort-key="avg_pt">
-                    평균 pt
-                  </th>
+                    <th class="sortable" data-sort-key="avg_pt">
+                      평균 pt
+                    </th>
 
-                  <th class="sortable" data-sort-key="yonde_rate">
-                    연대율
-                  </th>
+                    <th class="sortable" data-sort-key="yonde_rate">
+                      연대율
+                    </th>
 
-                  <th>등수 분포</th>
-                </tr>
-              </thead>
-              <tbody id="archive-ranking-tbody"></tbody>
-            </table>
+                    <th>등수 분포</th>
+                  </tr>
+                </thead>
+                <tbody id="archive-ranking-tbody"></tbody>
+              </table>
+            </div>
           </div>
 
           <!-- 개인별 통계 뷰 -->
