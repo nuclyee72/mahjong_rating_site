@@ -37,3 +37,7 @@ Thumbs.db
 
 # 업로드된 팀 로고 (서버마다 다름)
 static/logos/
+
+# 설정 및 빌드 파일
+config.json
+static/manifest.json
