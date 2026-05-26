@@ -10,14 +10,28 @@ from PIL import Image, ImageOps
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# 외부(madang_web)에서 경로를 주입받을 수 있도록 모듈 레벨 변수로 분리
+DB_PATH = os.path.join(BASE_DIR, "games.db")
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+
 def get_config():
-    with open(os.path.join(BASE_DIR, "config.json"), "r", encoding="utf-8") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
-DB_PATH = os.path.join(BASE_DIR, "games.db")
 CLUB_NAME = "<동아리명>"  # 동아리 이름 (변경 가능)
 
 # 마작 포인트 계산용 설정은 config.json에서 관리합니다.
+
+
+def configure(db_path=None, config_path=None, club_name=None):
+    """외부 프로젝트(madang_web 등)에서 DB/Config 경로와 동아리명을 주입할 때 사용합니다."""
+    global DB_PATH, CONFIG_PATH, CLUB_NAME
+    if db_path:
+        DB_PATH = db_path
+    if config_path:
+        CONFIG_PATH = config_path
+    if club_name:
+        CLUB_NAME = club_name
 
 
 
@@ -128,7 +142,7 @@ def inject_club_name():
     return dict(club_name=CLUB_NAME, config=cfg)
 
 CORS(app)
-init_db()
+# init_db()는 단독 실행 시 __main__ 블록에서, 외부 import 시 configure() 후 명시적으로 호출됩니다.
 
 # 마작 포인트 계산용 상수 (Moved to top)
 
@@ -1368,6 +1382,5 @@ def index_page():
 app.register_blueprint(mahjong_bp, url_prefix="/")
 
 if __name__ == "__main__":
-    if not os.path.exists(DB_PATH):
-        init_db()
+    init_db()  # 단독 실행 시 항상 DB 초기화 (CREATE TABLE IF NOT EXISTS이므로 안전)
     app.run(host="0.0.0.0", port=5000, debug=True)
