@@ -6,6 +6,7 @@ import os
 import io
 import csv
 import json
+import importlib.util as _ilu
 from PIL import Image, ImageOps
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1380,6 +1381,24 @@ def index_page():
     return render_template("index.html", club_name=CLUB_NAME)
 
 app.register_blueprint(mahjong_bp, url_prefix="/")
+
+# ── 시즌 말 결산(Review) 서브모듈 로드 ──
+# mahjong_rating_review가 submodule로 init된 경우에만 로드 (없으면 graceful skip)
+review_module = None  # madang_web에서 mahjong_module.review_module로 접근가능
+_review_app_path = os.path.join(BASE_DIR, "mahjong_rating_review", "app.py")
+_review_spec = _ilu.spec_from_file_location("review_app", _review_app_path)
+if _review_spec is not None and os.path.exists(_review_app_path):
+    review_module = _ilu.module_from_spec(_review_spec)
+    _review_spec.loader.exec_module(review_module)
+    review_module.configure(
+        db_path=DB_PATH,
+        config_path=CONFIG_PATH,
+        club_name=CLUB_NAME,
+    )
+    app.register_blueprint(review_module.review_bp, url_prefix="/review")
+    print("[INFO] mahjong_rating_review submodule loaded → /review")
+else:
+    print("[WARN] mahjong_rating_review submodule not found, skipping /review")
 
 if __name__ == "__main__":
     init_db()  # 단독 실행 시 항상 DB 초기화 (CREATE TABLE IF NOT EXISTS이므로 안전)
