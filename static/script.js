@@ -244,33 +244,55 @@ function renderGameList(tbodyId, allGames, options = {}) {
   const pageGames = allGames.slice(startIndex, startIndex + PAGE_SIZE);
 
   pageGames.forEach((g, idxOnPage) => {
+    const scores = [
+      Number(g.player1_score), Number(g.player2_score),
+      Number(g.player3_score), Number(g.player4_score),
+    ];
+    const names = [
+      g.player1_name, g.player2_name,
+      g.player3_name, g.player4_name,
+    ].map((n) => (n || "").trim());
+
+    const pts = calcPts(scores);
+
+    const order = scores.map((s, i) => ({ s, i })).sort((a, b) => b.s - a.s);
+    const ranks = [0, 0, 0, 0];
+    order.forEach((o, idx) => (ranks[o.i] = idx + 1));
+
+    const tr = document.createElement("tr");
+    tr.className = ""
+
     const isTournament = Boolean(g.is_tournament_flag);
+    const tournamentBadge = isTournament ? ' <span style="color:#e67e22;font-size:0.85em;font-weight:bold;">[대회]</span>' : '';
     const indexStr = options.useIndexNumbering
       ? `<span style="color:#888;">#${allGames.length - (startIndex + idxOnPage)}</span>`
       : `<span style="color:#888;">#${g.id}</span>`;
 
-    const tr = document.createElement("tr");
-    tr.className = ""
     tr.innerHTML = `
-      <td>${indexStr}${isTournament ? ' <span style="color:#e67e22;font-size:0.85em;font-weight:bold;">[대회]</span>' : ''}</td>
-      <td class="col-time-hide">${formatKoreanTime(g.created_at)}</td>
-      <td>${g.player1_name}<br><span style="color:${g.player1_score < 0 ? 'red' : 'black'}">${g.player1_score}</span></td>
-      <td>${g.player2_name}<br><span style="color:${g.player2_score < 0 ? 'red' : 'black'}">${g.player2_score}</span></td>
-      <td>${g.player3_name}<br><span style="color:${g.player3_score < 0 ? 'red' : 'black'}">${g.player3_score}</span></td>
-      <td>${g.player4_name}<br><span style="color:${g.player4_score < 0 ? 'red' : 'black'}">${g.player4_score}</span></td>
+      <td>${indexStr}${tournamentBadge}</td>
+      <td>${formatKoreanTime(g.created_at)}</td>
+      <td></td><td></td><td></td><td></td>
+      <td></td>
     `;
 
-    // 삭제 버튼 (옵션)
+    // P1~P4
+    for (let i = 0; i < 4; i++) {
+      const td = tr.children[2 + i];
+      const name = names[i] || "";
+      const score = scores[i];
+      const pt = pts[i];
+
+      td.innerHTML = `<strong>${name}</strong><br>${score} (${pt})`;
+      if (ranks[i] === 1) td.classList.add("winner-cell");
+    }
+
+    // Delete Button
+    const tdDel = tr.children[6];
     if (options.onDelete) {
-      const tdAct = document.createElement("td");
-      const delBtn = document.createElement("button");
-      delBtn.className = "btn-delete";
-      delBtn.textContent = "삭제";
-      delBtn.onclick = () => options.onDelete(g.id);
-      tdAct.appendChild(delBtn);
-      tr.appendChild(tdAct);
-    } else {
-      tr.innerHTML += `<td>-</td>`;
+      const btn = document.createElement("button");
+      btn.textContent = "삭제";
+      btn.addEventListener("click", () => options.onDelete(g.id));
+      tdDel.appendChild(btn);
     }
 
     tbody.appendChild(tr);
