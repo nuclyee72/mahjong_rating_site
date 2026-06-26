@@ -57,7 +57,7 @@
   <div class="top-bar">
     <h1>{{ club_name }}<br class="mobile-br"> 마작 레이팅</h1>
     <div class="view-switch">
-      <button class="view-switch-btn active" data-view="personal">개인 레이팅</button>
+      <button class="view-switch-btn active" data-view="personal">레이팅</button>
       <button class="view-switch-btn" data-view="stats">개인별 통계</button>
       <button class="view-switch-btn" data-view="tournament">대회 전용</button>
       <button class="view-switch-btn" data-view="archive">아카이브</button>
@@ -80,22 +80,22 @@
             <div class="row">
               <label>P1(동)</label>
               <input name="player1_name" placeholder="플레이어 1 이름" required>
-              <input name="player1_score" type="text" placeholder="pt" required>
+              <input name="player1_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P2(남)</label>
               <input name="player2_name" placeholder="플레이어 2 이름" required>
-              <input name="player2_score" type="text" placeholder="pt" required>
+              <input name="player2_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P3(서)</label>
               <input name="player3_name" placeholder="플레이어 3 이름" required>
-              <input name="player3_score" type="text" placeholder="pt" required>
+              <input name="player3_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P4(북)</label>
               <input name="player4_name" placeholder="플레이어 4 이름" required>
-              <input name="player4_score" type="text" placeholder="pt" required>
+              <input name="player4_score" type="text" placeholder="점수" required>
             </div>
             <button type="submit">저장</button>
           </form>
@@ -204,11 +204,11 @@
           <div class="stats-player-select">
             <label for="stats-player-select">플레이어 선택</label>
             <select id="stats-player-select">
-              <option value="">플레이어를 선택하세요</option>
+              <option value="">선택</option>
             </select>
           </div>
           <div id="stats-summary" class="stats-summary">
-            <p class="hint-text">플레이어를 선택하세요</p>
+            
           </div>
 
           <div id="stats-rank-section" style="display:none;">
@@ -321,22 +321,22 @@
             <div class="row">
               <label>P1(동)</label>
               <input name="player1_name" placeholder="플레이어 1 이름" required>
-              <input name="player1_score" type="text" placeholder="pt" required>
+              <input name="player1_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P2(남)</label>
               <input name="player2_name" placeholder="플레이어 2 이름" required>
-              <input name="player2_score" type="text" placeholder="pt" required>
+              <input name="player2_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P3(서)</label>
               <input name="player3_name" placeholder="플레이어 3 이름" required>
-              <input name="player3_score" type="text" placeholder="pt" required>
+              <input name="player3_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
               <label>P4(북)</label>
               <input name="player4_name" placeholder="플레이어 4 이름" required>
-              <input name="player4_score" type="text" placeholder="pt" required>
+              <input name="player4_score" type="text" placeholder="점수" required>
             </div>
             <button type="submit">저장</button>
           </form>
@@ -430,7 +430,7 @@
             </select>
           </div>
           <p class="hint-text">
-            관리자 기능에서 CSV 파일을 업로드해 시즌 아카이브를 등록할 수 있습니다
+            
           </p>
         </section>
 
@@ -509,12 +509,12 @@
               <div class="stats-player-select">
                 <label for="archive-stats-player-select">플레이어 선택</label>
                 <select id="archive-stats-player-select">
-                  <option value="">플레이어를 선택하세요</option>
+                  <option value="">선택</option>
                 </select>
               </div>
 
               <div id="archive-stats-summary" class="stats-summary">
-                <p class="hint-text">플레이어를 선택하세요.</p>
+                
               </div>
 
               <div id="archive-stats-rank-section" style="display:none;">
@@ -591,7 +591,7 @@
                 </thead>
                 <tbody id="archive-stats-player-games-tbody">
                   <tr>
-                    <td colspan="5" class="ranking-placeholder">플레이어를 선택하세요.</td>
+                    <td colspan="5" class="ranking-placeholder"></td>
                   </tr>
                 </tbody>
               </table>
