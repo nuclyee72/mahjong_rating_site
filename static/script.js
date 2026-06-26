@@ -1,5 +1,5 @@
 // ===== 공통 상수 =====
-const API_BASE = "";
+const API_BASE = "/mahjong_rating";
 const START_SCORE = (window.GAME_CONFIG && window.GAME_CONFIG.start_score) ? Number(window.GAME_CONFIG.start_score) : 25000;
 const RETURN_SCORE = (window.GAME_CONFIG && window.GAME_CONFIG.return_score) ? Number(window.GAME_CONFIG.return_score) : 30000;
 const UMA_VALUES = (window.GAME_CONFIG && window.GAME_CONFIG.uma) ? window.GAME_CONFIG.uma : [15, 5, -5, -15];
@@ -13,7 +13,9 @@ let STATS_PLAYER_LIST = [];    // ✅ 개인별 통계 셀렉트 전용(뱃지 �
 
 let ALL_BADGES = [];
 
-
+let RANKING_VIEW_MODE = "pt"; // "pt" | "season"
+let TOURNAMENT_STATS = {};    // { [name]: { games, sumPosPt } }
+let SEASON_SUMMARY = [];      // 시즌 pt용 표 데이터
 
 let ARCHIVE_VIEW_MODE = "ranking"; // "ranking" | "stats"
 let archiveStatsChart = null; // 아카이브 개인 통계용 차트
@@ -33,7 +35,10 @@ let TOURNAMENT_GAMES = [];
 
 let STATS_BADGE_ONLY_START = -1; // ✅ 셀렉트에서 "뱃지만 보유" 구역 시작 인덱스
 
-
+const SEASON_YEAR2 = 25;  // 2025 -> 25
+const SEASON_FROM = 1;
+const SEASON_TO = 6;
+let SEASON_TOURNAMENT_STATS = null; // { [name]: { joinCount, ptSum } }
 
 
 // ======================= 유틸리티 함수 =======================
@@ -152,6 +157,14 @@ function sortPlayersByState(list, sortState) {
   return arr;
 }
 
+// 시즌 pt 계산 (공통)
+function calculateSeasonScore(totalPt, games, tJoin, tSum) {
+  const totalPtScore = 500 * (2 / Math.PI) * Math.atan(totalPt / 250);
+  const gamesScore = 200 * (1 - Math.pow(0.95, games));
+  const tournamentScore = (Math.min(tJoin, 3) * 50) + 150 * (1 - Math.pow(0.995, Math.max(tSum, 0)));
+  const sum = totalPtScore + gamesScore + tournamentScore;
+  return { totalPtScore, gamesScore, tournamentScore, sum };
+}
 
 
 // ======================= 공통 렌더링 함수 =======================
@@ -315,6 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupPersonalForm();
   setupRankingSort();
+  setupRankingTitleToggle();
 
   setupStatsView();
 
@@ -501,7 +515,9 @@ async function loadGamesAndRanking() {
     TOURNAMENT_GAMES = tg || [];
   } catch (e) { console.warn(e); TOURNAMENT_GAMES = []; }
 
-  // 4. 삭제된 시즌 pt 영역
+  // 4. 시즌 pt 계산
+  SEASON_SUMMARY = await buildSeasonSummary(PLAYER_SUMMARY_ALL);
+
   // 5. 랭킹 렌더링
   renderMainRanking();
 
@@ -879,7 +895,7 @@ function renderArchiveRecentRankTrend(targetName, limit = 10) {
   if (!ctx) return;
 
   let all = [...CURRENT_ARCHIVE_GAMES];
-  all.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const myGames = [];
   for (const g of all) {
@@ -1031,13 +1047,14 @@ function renderArchiveGameIdPtChart(targetName, limit = 10) {
 }
 
 function calculateArchiveDailyHistory(targetName) {
-  let all = [...CURRENT_ARCHIVE_GAMES].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  let all = [...CURRENT_ARCHIVE_GAMES].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   let stats = {};
   let history = [];
   let currentDate = null;
 
   all.forEach(game => {
-    const dateStr = String(game.created_at).split(/[T ]/)[0];
+    const d = new Date(game.created_at);
+    const dateStr = d.toISOString().split('T')[0];
     if (currentDate && currentDate !== dateStr) snapshotArchive(history, currentDate, stats, targetName);
     currentDate = dateStr;
 
@@ -1097,7 +1114,7 @@ function renderArchiveHistoryGraph(name, range = "week") {
     const match = fullHistory.find(h => h.date === dateStr);
     if (match) lastState = match;
     if (lastState) data.push({ ...lastState, date: dateStr });
-    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    currentDate.setDate(currentDate.getDate() + 1);
   }
 
   let maxRank = 10;
@@ -1110,15 +1127,14 @@ function renderArchiveHistoryGraph(name, range = "week") {
     data: {
       labels: data.map(h => h.date.slice(5)),
       datasets: [
-        { label: '총 pt', data: data.map(h => h.total_pt), borderColor: '#4f9cff', backgroundColor: '#4f9cff', yAxisID: 'y', tension: 0.1, pointRadius: 3 },
-        { label: '총 pt 등수', data: data.map(h => h.pt_rank), borderColor: '#ff6b81', borderDash: [5, 5], yAxisID: 'y1', tension: 0.1, pointRadius: 0, hidden: true }
+        { label: '총 pt', data: data.map(h => h.total_pt), borderColor: '#4f9cff', backgroundColor: '#4f9cff', yAxisID: 'y', tension: 0.1, pointRadius: 3 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false } },
       scales: {
-        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'pt' } },
-        y1: { type: 'linear', display: true, position: 'right', reverse: true, min: 1, max: maxRank, ticks: { stepSize: 1, precision: 0 }, title: { display: true, text: '등수' }, grid: { drawOnChartArea: false } }
+        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'pt' } }
       }
     }
   });
@@ -1428,6 +1444,137 @@ async function loadTournamentGamesAndRanking() {
 }
 
 
+// ======================= 시즌 pt 관련 =======================
+
+function setupRankingTitleToggle() {
+  const title = document.getElementById("ranking-title");
+  if (title) {
+    title.addEventListener("click", () => {
+      RANKING_VIEW_MODE = (RANKING_VIEW_MODE === "pt" ? "season" : "pt");
+      renderMainRanking();
+    });
+  }
+}
+
+function renderMainRanking() {
+  const ptWrap = document.getElementById("ranking-pt-wrap");
+  const seasonWrap = document.getElementById("ranking-season-wrap");
+  const title = document.getElementById("ranking-title");
+  const legend = document.querySelector(".rank-legend");
+
+  // Title Update
+  if (title) {
+    title.textContent = RANKING_VIEW_MODE === "season" ? "시즌 pt" : "전체 등수";
+  }
+
+  // Legend Toggle
+  if (legend) legend.style.display = "";
+
+  // Visibility Toggle
+  if (ptWrap) ptWrap.style.display = RANKING_VIEW_MODE === "season" ? "none" : "block";
+  if (seasonWrap) seasonWrap.style.display = RANKING_VIEW_MODE === "season" ? "block" : "none";
+
+  // Content Rendering
+  if (RANKING_VIEW_MODE === "season") {
+    renderSeasonRankingTable();
+  } else {
+    renderRankingTable("ranking-tbody", PLAYER_SUMMARY, RANKING_SORT, "ranking-table", "통계 없음");
+  }
+}
+
+async function buildSeasonSummary(playersAll) {
+  // Need archive stats
+  const seasonT = await loadSeasonTournamentStats(); // helper
+  return playersAll.filter(p => p.games >= 4).map(p => {
+    const totalPt = p.total_pt;
+    const games = p.games;
+    const t = seasonT?.[p.name] || { joinCount: 0, ptSum: 0 };
+
+    // Formula (Use Helper)
+    const scores = calculateSeasonScore(totalPt, games, t.joinCount, t.ptSum);
+
+    return {
+      name: p.name,
+      total_pt_score: scores.totalPtScore,
+      games_score: scores.gamesScore,
+      tournament_score: scores.tournamentScore,
+      season_score: scores.sum
+    };
+  }).sort((a, b) => b.season_score - a.season_score);
+}
+
+
+async function loadSeasonTournamentStats() {
+  if (SEASON_TOURNAMENT_STATS) return SEASON_TOURNAMENT_STATS;
+
+  // Fetch archives, filter by MONTHLY TOURNAMENT pattern
+  let archives = [];
+  try { archives = await fetchJSON(`${API_BASE}/api/archives`); } catch (e) { return {}; }
+
+  // Pattern: "YYYY MM월" or "YY MM월" matching SEASON_YEAR2
+  // Minimal pattern check:
+  const target = archives.filter(a => {
+    const s = (a.name || "");
+    if (!s.includes("대회")) return false;
+    const m = s.match(/(?:20)?(\d{2})\s*[-년]?\s*(\d{1,2})\s*월/);
+    if (!m) return false;
+    return Number(m[1]) === SEASON_YEAR2 && Number(m[2]) >= SEASON_FROM && Number(m[2]) <= SEASON_TO;
+  });
+
+  const map = {}; // name -> { joined: Set, ptSum: 0 }
+
+  for (const a of target) {
+    let games = [];
+    try { games = await fetchJSON(`${API_BASE}/api/archives/${a.id}/games`); } catch (e) { continue; }
+
+    const appeared = new Set();
+    games.forEach(g => {
+      const scores = [g.player1_score, g.player2_score, g.player3_score, g.player4_score].map(Number);
+      const names = [g.player1_name, g.player2_name, g.player3_name, g.player4_name].map(n => (n || "").trim());
+      const pts = calcPts(scores);
+
+      names.forEach((n, i) => {
+        if (!n) return;
+        appeared.add(n);
+        if (!map[n]) map[n] = { joined: new Set(), ptSum: 0 };
+        map[n].ptSum += Math.max(pts[i], 0); // Only positive
+      });
+    });
+
+    appeared.forEach(n => {
+      if (map[n]) map[n].joined.add(a.id);
+    });
+  }
+
+  const out = {};
+  Object.keys(map).forEach(n => {
+    out[n] = { joinCount: map[n].joined.size, ptSum: map[n].ptSum };
+  });
+  SEASON_TOURNAMENT_STATS = out;
+  return out;
+}
+
+function renderSeasonRankingTable() {
+  const tbody = document.getElementById("season-ranking-tbody");
+  if (!tbody) return;
+  const data = SEASON_SUMMARY || [];
+  tbody.innerHTML = "";
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" class="ranking-placeholder">통계 없음</td></tr>'; return; }
+
+  data.forEach((p, idx) => {
+    const tr = document.createElement("tr");
+    tr.className = ""
+    tr.innerHTML = `
+            <td>${idx + 1}</td>
+            <td>${p.name}</td>
+            <td>${p.total_pt_score.toFixed(1)}</td>
+            <td>${p.games_score.toFixed(1)}</td>
+            <td>${p.tournament_score.toFixed(1)}</td>
+            <td><strong>${p.season_score.toFixed(1)}</strong></td>
+        `;
+    tbody.appendChild(tr);
+  });
+}
 
 
 // ======================= 관리자 =======================
@@ -1524,11 +1671,11 @@ async function reloadBadgeList() {
 let statsChart = null; // Chart.js instance
 
 // 날짜별 이력 계산
-// Returns: { dates: [], totalPts: [], totalPtRanks: [] }
+// Returns: { dates: [], totalPts: [], seasonScores: [], totalPtRanks: [], seasonScoreRanks: [] }
 function calculateDailyHistory(targetName) {
   // 1. 모든 게임(일반 + 대회)을 시간순 정렬
   let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
-  all.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  all.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   // 플레이어별 상태 추적
   let stats = {};
@@ -1536,16 +1683,25 @@ function calculateDailyHistory(targetName) {
   // 날짜별 스냅샷
   let history = [];
 
+  // 헬퍼: 현재 상태에서 시즌 스코어 계산
+  const getSeasonScore = (s) => {
+    if (!s) return 0;
+    const tJoin = s.tournament ? s.tournament.join : 0;
+    const tSum = s.tournament ? s.tournament.sum : 0;
+    return calculateSeasonScore(s.total_pt, s.games, tJoin, tSum).sum;
+  };
+
   // 게임 순회
   let currentDate = null;
 
   all.forEach(game => {
     // 날짜 체크 (YYYY-MM-DD)
-    const dateStr = String(game.created_at).split(/[T ]/)[0];
+    const d = new Date(game.created_at);
+    const dateStr = d.toISOString().split('T')[0];
 
     if (currentDate && currentDate !== dateStr) {
       // 날짜가 바뀌기 직전 스냅샷 저장
-      snapshot(history, currentDate, stats, targetName);
+      snapshot(history, currentDate, stats, targetName, getSeasonScore);
     }
     currentDate = dateStr;
 
@@ -1580,14 +1736,14 @@ function calculateDailyHistory(targetName) {
 
   // 마지막 날짜 스냅샷
   if (currentDate) {
-    snapshot(history, currentDate, stats, targetName);
+    snapshot(history, currentDate, stats, targetName, getSeasonScore);
   }
 
   return history;
 }
 
 // 스냅샷 저장 헬퍼
-function snapshot(history, date, stats, targetName) {
+function snapshot(history, date, stats, targetName, scoreFn) {
   if (!stats[targetName]) {
     // 아직 데뷔 전이면 0으로라도 기록? 아니면 기록 없음?
     // 그래프 연결을 위해 0으로 기록하는게 나을 수 있음.
@@ -1602,10 +1758,16 @@ function snapshot(history, date, stats, targetName) {
   players.sort((a, b) => stats[b].total_pt - stats[a].total_pt);
   let ptRank = players.indexOf(targetName) + 1;
 
+  // 2. Season Score Rank
+  players.sort((a, b) => scoreFn(stats[b]) - scoreFn(stats[a]));
+  let seasonRank = players.indexOf(targetName) + 1;
+
   history.push({
     date: date,
     total_pt: stats[targetName].total_pt,
+    season_score: scoreFn(stats[targetName]),
     pt_rank: ptRank,
+    season_rank: seasonRank,
     total_players: players.length // 전체 플레이어 수 저장
   });
 }
@@ -1677,7 +1839,7 @@ function renderHistoryGraph(targetName, range) {
       data.push({ ...lastState, date: dateStr });
     }
 
-    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    currentDate.setDate(currentDate.getDate() + 1);
   }
 
   // y1 축 범위 설정을 위한 최대 등수 계산 (해당 기간 내 최대 참여 인원수)
@@ -1705,16 +1867,6 @@ function renderHistoryGraph(targetName, range) {
           yAxisID: 'y',
           tension: 0.1,
           pointRadius: 3
-        },
-        {
-          label: '총 pt 등수',
-          data: data.map(h => h.pt_rank),
-          borderColor: '#ff6b81',
-          borderDash: [5, 5],
-          yAxisID: 'y1',
-          tension: 0.1,
-          pointRadius: 0,
-          hidden: true
         }
       ]
     },
@@ -1725,29 +1877,16 @@ function renderHistoryGraph(targetName, range) {
         mode: 'index',
         intersect: false,
       },
+      plugins: {
+        legend: { display: false }
+      },
       scales: {
         y: {
           type: 'linear',
           display: true,
           position: 'left',
           title: { display: true, text: 'pt' }
-        },
-        y1: {
-          type: 'linear',
-          display: true,
-          position: 'right',
-          reverse: true, // 1등이 위로
-          min: 1,
-          max: maxRank, // 데이터 범위에 맞춤
-          ticks: {
-            stepSize: 1, // 정수 단위
-            precision: 0
-          },
-          title: { display: true, text: '등수' },
-          grid: {
-            drawOnChartArea: false,
-          },
-        },
+        }
       }
     }
   });
@@ -1937,7 +2076,7 @@ function renderRecentRankTrend(targetName, limit = 10) {
 
   // 플레이어 게임 데이터 추출 (최신순)
   let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
-  all.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const myGames = [];
   for (const g of all) {

@@ -63,6 +63,7 @@
       <button class="view-switch-btn" data-view="archive">아카이브</button>
       <button class="view-switch-btn" data-view="admin">관리자 기능</button>
     </div>
+    <a href="/" class="btn-link" style="margin-left: 8px; flex-shrink: 0;">홈으로</a>
   </div>
 
   <!-- ================= 개인 레이팅 화면 ================= -->
@@ -103,8 +104,8 @@
           <div class="games-header">
             <h2>대국 기록</h2>
             <div class="games-header-right">
-              <a href="/export" class="export-link">CSV 내보내기</a>
-              <a href="/import" class="import-link">CSV 가져오기</a>
+              <a href="/mahjong_rating/export" class="export-link">CSV 내보내기</a>
+              <a href="/mahjong_rating/import" class="import-link">CSV 가져오기</a>
             </div>
           </div>
 
@@ -179,6 +180,10 @@
               </table>
             </div>
           </div>
+
+
+
+
 
 
         </section>
@@ -264,7 +269,7 @@
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <h3 style="margin: 0;">날짜별 pt 및 등수</h3>
+            <h3 style="margin: 0;">날짜별 pt</h3>
             <div class="chart-filters">
               <button class="chart-filter-btn active" data-range="week">최근 1주일</button>
               <button class="chart-filter-btn" data-range="month">최근 1달</button>
@@ -339,8 +344,8 @@
           <div class="games-header">
             <h2>대회 대국 기록</h2>
             <div class="games-header-right">
-              <a href="/export_tournament" class="export-link">CSV 내보내기</a>
-              <a href="/import_tournament" class="import-link">CSV 가져오기</a>
+              <a href="/mahjong_rating/export_tournament" class="export-link">CSV 내보내기</a>
+              <a href="/mahjong_rating/import_tournament" class="import-link">CSV 가져오기</a>
             </div>
           </div>
 
@@ -538,7 +543,7 @@
               </div>
 
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="margin: 0;">날짜별 pt 및 등수</h3>
+                <h3 style="margin: 0;">날짜별 pt</h3>
                 <div class="chart-filters">
                   <button class="archive-chart-filter-btn active" data-range="week">최근 1주일</button>
                   <button class="archive-chart-filter-btn" data-range="month">최근 1달</button>
@@ -607,12 +612,12 @@
           <section class="admin-panel">
             <h3>뱃지 CSV 백업 / 복원</h3>
             <div class="games-header-right">
-              <a href="/export_badges" class="export-link">뱃지 목록 CSV 내보내기</a>
-              <a href="/import_badges" class="import-link">뱃지 목록 가져오기</a>
+              <a href="/mahjong_rating/export_badges" class="export-link">뱃지 목록 CSV 내보내기</a>
+              <a href="/mahjong_rating/import_badges" class="import-link">뱃지 목록 가져오기</a>
             </div>
             <div class="games-header-right" style="margin-top:6px;">
-              <a href="/export_player_badges" class="export-link">뱃지 부여 CSV 내보내기</a>
-              <a href="/import_player_badges" class="import-link">뱃지 부여 가져오기</a>
+              <a href="/mahjong_rating/export_player_badges" class="export-link">뱃지 부여 CSV 내보내기</a>
+              <a href="/mahjong_rating/import_player_badges" class="import-link">뱃지 부여 가져오기</a>
             </div>
             <p class="hint-text" style="margin-top:6px;">
               가져오기는 기존 데이터를 모두 삭제하고 새로 덮어쓰는 “대체” 방식입니다.
@@ -661,7 +666,7 @@
             autocomplete="off">
             <div class="form-row">
               <label>아카이브 이름</label>
-              <input type="text" name="archive_name" placeholder="아카이브 이름" required>
+              <input type="text" name="archive_name" placeholder="예: 2024 시즌 1" required>
             </div>
             <div class="form-row">
               <label>CSV 파일</label>
@@ -716,6 +721,16 @@
   </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    document.querySelectorAll('a[href="/"]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = this.getAttribute('href');
+        document.body.classList.add('slide-down-exit');
+        setTimeout(() => { window.location.href = target; }, 230);
+      });
+    });
+  </script>
 </body>
 
 </html>
