@@ -58,7 +58,7 @@
     <h1>{{ club_name }}<br class="mobile-br"> 마작 레이팅</h1>
     <div class="view-switch">
       <button class="view-switch-btn active" data-view="personal">레이팅</button>
-      <button class="view-switch-btn" data-view="stats">개인별 통계</button>
+      <button class="view-switch-btn" data-view="stats">플레이어 기록</button>
       <button class="view-switch-btn" data-view="tournament">대회</button>
       <button class="view-switch-btn" data-view="archive">아카이브</button>
       {% if is_admin %}
@@ -193,14 +193,14 @@
     </div>
   </div>
 
-  <!-- ================= 개인별 통계 화면 ================= -->
+  <!-- ================= 플레이어 기록 화면 ================= -->
   <div id="stats-view" class="view" style="display:none;">
     <div class="main-layout">
       <div class="left-panel">
 
-        <!-- (2) 개인별 통계 + (3) 총 등수 통계 병합 -->
+        <!-- (2) 플레이어 기록 + (3) 총 등수 통계 병합 -->
         <section class="stats-panel">
-          <h2>개인별 통계</h2>
+          <h2>플레이어 기록</h2>
           <div class="stats-player-select">
             <label for="stats-player-select">플레이어 선택</label>
             <select id="stats-player-select">
@@ -457,7 +457,7 @@
         </section>
       </div>
 
-      <!-- 오른쪽: 전체 등수 (아카이브 기준) / 개인별 통계 -->
+      <!-- 오른쪽: 전체 등수 (아카이브 기준) / 플레이어 기록 -->
       <div class="right-panel">
         <section class="ranking-panel">
           <div class="ranking-header">
@@ -503,7 +503,7 @@
             </div>
           </div>
 
-          <!-- 개인별 통계 뷰 -->
+          <!-- 플레이어 기록 뷰 -->
           <div id="archive-stats-wrap" style="display:none;">
             <section class="stats-panel">
               <div class="stats-player-select">
