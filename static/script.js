@@ -9,7 +9,7 @@ const OKA_TO_1ST = (window.GAME_CONFIG && window.GAME_CONFIG.oka !== undefined) 
 let ALL_GAMES = [];
 let PLAYER_SUMMARY = [];       // ✅ 개인 레이팅 표(4국 이상) 전용
 let PLAYER_SUMMARY_ALL = [];   // ✅ 게임 기준 전체 플레이어(필터 전)
-let STATS_PLAYER_LIST = [];    // ✅ 개인별 통계 셀렉트 전용(뱃지 포함)
+let STATS_PLAYER_LIST = [];    // ✅ 플레이어 기록 셀렉트 전용(뱃지 포함)
 
 let ALL_BADGES = [];
 
@@ -72,7 +72,7 @@ function renderPaginationControls(tbodyId, totalItems, onPageChange) {
     }
   });
 }
-let archiveStatsChart = null; // 아카이브 개인 통계용 차트
+let archiveStatsChart = null; // 아카이브 플레이어 기록용 차트
 
 
 // ===== 개인 레이팅(전체 등수) 정렬 상태 =====
@@ -646,7 +646,7 @@ async function loadGamesAndRanking() {
 }
 
 
-// ======================= 개인별 통계 =======================
+// ======================= 플레이어 기록 =======================
 
 function setupStatsView() {
   const select = document.getElementById("stats-player-select");
@@ -908,7 +908,7 @@ function setupArchiveView() {
   // 아카이브 제목 클릭 토글
   setupArchiveRankingTitleToggle();
 
-  // 아카이브 개인 통계 플레이어 선택
+  // 아카이브 플레이어 기록 플레이어 선택
   const psel = document.getElementById("archive-stats-player-select");
   if (psel) psel.addEventListener("change", () => renderArchiveStatsForPlayer(psel.value));
 }
@@ -929,7 +929,7 @@ function setupArchiveRankingTitleToggle() {
 // script_team.js 로 이동됨
 
 
-// 아카이브 뷰 렌더링 (랭킹 또는 개인 통계)
+// 아카이브 뷰 렌더링 (랭킹 또는 플레이어 기록)
 function renderArchiveView() {
   const rankingWrap = document.getElementById("archive-ranking-wrap");
   const statsWrap = document.getElementById("archive-stats-wrap");
@@ -938,16 +938,16 @@ function renderArchiveView() {
   if (ARCHIVE_VIEW_MODE === "ranking") {
     if (rankingWrap) rankingWrap.style.display = "block";
     if (statsWrap) statsWrap.style.display = "none";
-    if (title) title.textContent = "전체 등수 (아카이브)";
+    if (title) title.textContent = "전체 등수";
   } else {
     if (rankingWrap) rankingWrap.style.display = "none";
     if (statsWrap) statsWrap.style.display = "block";
-    if (title) title.textContent = "개인별 통계 (아카이브)";
+    if (title) title.textContent = "플레이어 기록 (아카이브)";
     updateArchiveStatsPlayerSelect();
   }
 }
 
-// 아카이브 개인 통계 플레이어 선택 업데이트
+// 아카이브 플레이어 기록 플레이어 선택 업데이트
 function updateArchiveStatsPlayerSelect() {
   const select = document.getElementById("archive-stats-player-select");
   if (!select) return;
