@@ -683,7 +683,7 @@ function updateStatsPlayerSelect() {
   const select = document.getElementById("stats-player-select");
   if (!select) return;
   const prev = select.value;
-  select.innerHTML = '<option value="">선택</option>';
+  select.innerHTML = '<option value="">플레이어를 선택하세요</option>';
 
   const list = STATS_PLAYER_LIST.length ? STATS_PLAYER_LIST : (PLAYER_SUMMARY_ALL || []);
 
@@ -953,7 +953,7 @@ function updateArchiveStatsPlayerSelect() {
   if (!select) return;
 
   const prev = select.value;
-  select.innerHTML = '<option value="">선택</option>';
+  select.innerHTML = '<option value="">플레이어를 선택하세요</option>';
 
   const sorted = [...ARCHIVE_PLAYER_SUMMARY].sort((a, b) => b.total_pt - a.total_pt);
 
@@ -1247,7 +1247,7 @@ function updateArchivePlayerSelect() {
   const select = document.getElementById("archive-player-select");
   if (!select) return;
   const prev = select.value;
-  select.innerHTML = '<option value="">선택</option>';
+  select.innerHTML = '<option value="">플레이어를 선택하세요</option>';
 
   // Sort logic same as original: Total Pt Desc
   const sorted = [...ARCHIVE_PLAYER_SUMMARY].sort((a, b) => b.total_pt - a.total_pt);
