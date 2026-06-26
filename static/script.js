@@ -942,7 +942,7 @@ function renderArchiveView() {
   } else {
     if (rankingWrap) rankingWrap.style.display = "none";
     if (statsWrap) statsWrap.style.display = "block";
-    if (title) title.textContent = "플레이어 기록 (아카이브)";
+    if (title) title.textContent = "플레이어 기록";
     updateArchiveStatsPlayerSelect();
   }
 }
