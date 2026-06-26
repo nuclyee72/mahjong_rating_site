@@ -18,6 +18,60 @@ let TOURNAMENT_STATS = {};    // { [name]: { games, sumPosPt } }
 let SEASON_SUMMARY = [];      // 시즌 pt용 표 데이터
 
 let ARCHIVE_VIEW_MODE = "ranking"; // "ranking" | "stats"
+
+const PAGINATION_STATE = {};
+const PAGE_SIZE = 10;
+
+function renderPaginationControls(tbodyId, totalItems, onPageChange) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const table = tbody.closest('table');
+  if (!table) return;
+
+  let container = table.nextElementSibling;
+  if (!container || !container.classList.contains('pagination-controls')) {
+    container = document.createElement('div');
+    container.className = 'pagination-controls';
+    container.style.display = 'flex';
+    container.style.justifyContent = 'center';
+    container.style.alignItems = 'center';
+    container.style.marginTop = '15px';
+    container.style.marginBottom = '15px';
+    container.style.gap = '15px';
+    table.parentNode.insertBefore(container, table.nextSibling);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  let currentPage = PAGINATION_STATE[tbodyId] || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  PAGINATION_STATE[tbodyId] = currentPage;
+
+  if (totalItems === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+
+  container.innerHTML = `
+    <button class="page-btn prev-btn" ${currentPage === 1 ? 'disabled' : ''} style="cursor:pointer; padding: 4px 12px; border: 1px solid #ddd; background: #fff; border-radius: 4px;">&lt;</button>
+    <span style="font-size:14px; font-weight:bold; min-width: 40px; text-align: center;">${currentPage} / ${totalPages}</span>
+    <button class="page-btn next-btn" ${currentPage === totalPages ? 'disabled' : ''} style="cursor:pointer; padding: 4px 12px; border: 1px solid #ddd; background: #fff; border-radius: 4px;">&gt;</button>
+  `;
+
+  container.querySelector('.prev-btn').addEventListener('click', () => {
+    if (currentPage > 1) {
+      PAGINATION_STATE[tbodyId] = currentPage - 1;
+      onPageChange();
+    }
+  });
+
+  container.querySelector('.next-btn').addEventListener('click', () => {
+    if (currentPage < totalPages) {
+      PAGINATION_STATE[tbodyId] = currentPage + 1;
+      onPageChange();
+    }
+  });
+}
 let archiveStatsChart = null; // 아카이브 개인 통계용 차트
 
 
@@ -169,67 +223,110 @@ function calculateSeasonScore(totalPt, games, tJoin, tSum) {
 
 // ======================= 공통 렌더링 함수 =======================
 
-// 1. 대국 기록 리스트 렌더링 (개인전, 아카이브, 대회전)
-// options: { onDelete: async (id) => { ... }, useIndexNumbering: bool }
-function renderGameList(tbodyId, games, options = {}) {
+function renderGameList(tbodyId, allGames, options = {}) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
 
   tbody.innerHTML = "";
-  if (!games || games.length === 0) {
+  if (!allGames || allGames.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="ranking-placeholder">기록 없음</td></tr>';
+    renderPaginationControls(tbodyId, 0, () => {});
     return;
   }
 
-  games.forEach((g, index) => {
-    const scores = [
-      Number(g.player1_score), Number(g.player2_score),
-      Number(g.player3_score), Number(g.player4_score),
-    ];
-    const names = [
-      g.player1_name, g.player2_name,
-      g.player3_name, g.player4_name,
-    ].map((n) => (n || "").trim());
+  if (!PAGINATION_STATE[tbodyId]) PAGINATION_STATE[tbodyId] = 1;
+  let currentPage = PAGINATION_STATE[tbodyId];
+  const totalPages = Math.ceil(allGames.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  PAGINATION_STATE[tbodyId] = currentPage;
 
-    const pts = calcPts(scores);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const pageGames = allGames.slice(startIndex, startIndex + PAGE_SIZE);
 
-    const order = scores.map((s, i) => ({ s, i })).sort((a, b) => b.s - a.s);
-    const ranks = [0, 0, 0, 0];
-    order.forEach((o, idx) => (ranks[o.i] = idx + 1));
+  pageGames.forEach((g, idxOnPage) => {
+    const isTournament = Boolean(g.is_tournament_flag);
+    const indexStr = options.useIndexNumbering
+      ? `<span style="color:#888;">#${allGames.length - (startIndex + idxOnPage)}</span>`
+      : `<span style="color:#888;">#${g.id}</span>`;
 
     const tr = document.createElement("tr");
     tr.className = ""
-
-    // ID, Time (use index if useIndexNumbering is true)
-    const displayId = options.useIndexNumbering ? (index + 1) : (g.id || "");
     tr.innerHTML = `
-      <td>${displayId}</td>
-      <td>${formatKoreanTime(g.created_at)}</td>
-      <td></td><td></td><td></td><td></td>
-      <td></td>
+      <td>${indexStr}${isTournament ? ' <span style="color:#e67e22;font-size:0.85em;font-weight:bold;">[대회]</span>' : ''}</td>
+      <td class="col-time-hide">${formatKoreanTime(g.created_at)}</td>
+      <td>${g.player1_name}<br><span style="color:${g.player1_score < 0 ? 'red' : 'black'}">${g.player1_score}</span></td>
+      <td>${g.player2_name}<br><span style="color:${g.player2_score < 0 ? 'red' : 'black'}">${g.player2_score}</span></td>
+      <td>${g.player3_name}<br><span style="color:${g.player3_score < 0 ? 'red' : 'black'}">${g.player3_score}</span></td>
+      <td>${g.player4_name}<br><span style="color:${g.player4_score < 0 ? 'red' : 'black'}">${g.player4_score}</span></td>
     `;
 
-    // P1~P4
-    for (let i = 0; i < 4; i++) {
-      const td = tr.children[2 + i];
-      const name = names[i] || "";
-      const score = scores[i];
-      const pt = pts[i];
-
-      td.innerHTML = `<strong>${name}</strong><br>${score} (${pt})`;
-      if (ranks[i] === 1) td.classList.add("winner-cell");
-    }
-
-    // Delete Button
-    const tdDel = tr.children[6];
+    // 삭제 버튼 (옵션)
     if (options.onDelete) {
-      const btn = document.createElement("button");
-      btn.textContent = "삭제";
-      btn.addEventListener("click", () => options.onDelete(g.id));
-      tdDel.appendChild(btn);
+      const tdAct = document.createElement("td");
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn-delete";
+      delBtn.textContent = "삭제";
+      delBtn.onclick = () => options.onDelete(g.id);
+      tdAct.appendChild(delBtn);
+      tr.appendChild(tdAct);
+    } else {
+      tr.innerHTML += `<td>-</td>`;
     }
 
     tbody.appendChild(tr);
+  });
+
+  renderPaginationControls(tbodyId, allGames.length, () => {
+    renderGameList(tbodyId, allGames, options);
+  });
+}
+
+function renderPlayerGameRecords(tbodyId, gameRecords) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (!gameRecords || gameRecords.length === 0) {
+     tbody.innerHTML = '<tr><td colspan="5" class="ranking-placeholder">기록 없음</td></tr>';
+     renderPaginationControls(tbodyId, 0, () => {});
+     return;
+  }
+
+  if (!PAGINATION_STATE[tbodyId]) PAGINATION_STATE[tbodyId] = 1;
+  let currentPage = PAGINATION_STATE[tbodyId];
+  const totalPages = Math.ceil(gameRecords.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  PAGINATION_STATE[tbodyId] = currentPage;
+
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const pageRecords = gameRecords.slice(startIndex, startIndex + PAGE_SIZE);
+
+  pageRecords.forEach((rec) => {
+    const tr = document.createElement("tr");
+    tr.className = "";
+    const tdTime = document.createElement("td");
+    tdTime.className = "col-time-hide";
+    tdTime.textContent = formatKoreanTime(rec.created_at);
+    tr.appendChild(tdTime);
+
+    rec.names.forEach((n, i) => {
+      const td = document.createElement("td");
+      td.innerHTML = `<strong>${n}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
+      const isWinner = rec.ranks[i] === 1;
+      const isMyPlayer = i === rec.myIndex;
+
+      if (isWinner) {
+        td.classList.add("winner-cell");
+      } else if (isMyPlayer) {
+        td.classList.add("my-player-cell");
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  renderPaginationControls(tbodyId, gameRecords.length, () => {
+    renderPlayerGameRecords(tbodyId, gameRecords);
   });
 }
 
@@ -383,7 +480,7 @@ function setupViewSwitch() {
       if (nextEl) {
         nextEl.style.display = "block";
         nextEl.classList.remove("view-slide-right", "view-slide-left");
-        // 강제 reflow 후 클래스 추가 (애니메이션 재시작)
+        // 강제 reflow 후 클래스 적용 (애니메이션 재시작)
         void nextEl.offsetWidth;
         nextEl.classList.add(slideClass);
         // 애니메이션 끝나면 클래스 제거
@@ -719,8 +816,6 @@ function renderStatsForPlayer(name) {
     avgRankSpan.textContent = detail.games > 0 ? `평균 등수: ${detail.avg_rank.toFixed(2)}` : "평균 등수: -";
   }
 
-
-
   // Co-Players
   coTbody.innerHTML = "";
   if (detail.coPlayers.length) {
@@ -736,41 +831,8 @@ function renderStatsForPlayer(name) {
 
   // Game Records
   if (playerGamesTbody) {
-    playerGamesTbody.innerHTML = "";
-    if (detail.gameRecords.length) {
-      detail.gameRecords.forEach((rec, ri) => {
-        const tr = document.createElement("tr");
-        tr.className = ""
-        const tdTime = document.createElement("td");
-        tdTime.className = "col-time-hide";
-        tdTime.textContent = formatKoreanTime(rec.created_at);
-        tr.appendChild(tdTime);
-        rec.names.forEach((n, i) => {
-          const td = document.createElement("td");
-          td.innerHTML = `<strong>${n}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
-
-          // 1등인지 확인
-          const isWinner = rec.ranks[i] === 1;
-
-          // 자신인지 확인
-          const isMyPlayer = i === rec.myIndex;
-
-          // 1등이면 파란색 (우선순위 높음)
-          if (isWinner) {
-            td.classList.add("winner-cell");
-          }
-          // 1등이 아니면서 자신이면 노란색
-          else if (isMyPlayer) {
-            td.classList.add("my-player-cell");
-          }
-
-          tr.appendChild(td);
-        });
-        playerGamesTbody.appendChild(tr);
-      });
-    } else {
-      playerGamesTbody.innerHTML = '<tr><td colspan="5" class="ranking-placeholder">기록 없음</td></tr>';
-    }
+      PAGINATION_STATE["stats-player-games-tbody"] = 1; // reset page on load
+      renderPlayerGameRecords("stats-player-games-tbody", detail.gameRecords);
   }
 
   loadPlayerBadgesForStats(name);
