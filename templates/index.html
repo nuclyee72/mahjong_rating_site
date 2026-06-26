@@ -61,7 +61,9 @@
       <button class="view-switch-btn" data-view="stats">개인별 통계</button>
       <button class="view-switch-btn" data-view="tournament">대회 전용</button>
       <button class="view-switch-btn" data-view="archive">아카이브</button>
-      <button class="view-switch-btn" data-view="admin">관리자 기능</button>
+      {% if is_admin %}
+      <button class="view-switch-btn" data-view="admin">관리자</button>
+      {% endif %}
     </div>
     <a href="/" class="btn-link" style="margin-left: 8px; flex-shrink: 0;">홈으로</a>
   </div>
@@ -605,6 +607,7 @@
 
 
   <!-- ================= 관리자 기능 화면 ================= -->
+  {% if is_admin %}
   <div id="admin-view" class="view" style="display:none;">
     <div class="main-layout">
       <div class="left-panel">
@@ -716,9 +719,10 @@
           <button id="reset-tournament-btn" class="danger-btn">대회 기록 전체 삭제</button>
         </section>
 
+        </div>
       </div>
     </div>
-  </div>
+  {% endif %}
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
   <script>

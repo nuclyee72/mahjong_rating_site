@@ -1378,7 +1378,11 @@ def reset_tournament():
 
 @mahjong_bp.route("/")
 def index_page():
-    return render_template("index.html", club_name=CLUB_NAME)
+    return render_template("index.html", club_name=CLUB_NAME, is_admin=False)
+
+@mahjong_bp.route("/admin")
+def admin_page():
+    return render_template("index.html", club_name=CLUB_NAME, is_admin=True)
 
 app.register_blueprint(mahjong_bp, url_prefix="/")
 
