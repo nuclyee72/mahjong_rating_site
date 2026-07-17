@@ -48,7 +48,10 @@
       const ok = document.getElementById('confirm-modal-ok');
       const cancel = document.getElementById('confirm-modal-cancel');
       const close = () => { modal.style.display = 'none'; ok.onclick = null; cancel.onclick = null; };
-      ok.onclick = () => { close(); onOk(); };
+      ok.onclick = () => {
+        close();
+        Promise.resolve(onOk()).catch(err => alert(err.message || '오류가 발생했습니다.'));
+      };
       cancel.onclick = close;
     }
   </script>
@@ -611,6 +614,11 @@
   <div id="admin-view" class="view" style="display:none;">
     <div class="main-layout">
       <div class="left-panel">
+        <section class="admin-panel" style="text-align:right;">
+          <form method="post" action="{{ url_for('mahjong.admin_logout') }}" style="display:inline;">
+            <button type="submit" class="import-link" style="cursor:pointer;">관리자 로그아웃</button>
+          </form>
+        </section>
         <section class="admin-panel">
           <section class="admin-panel">
             <h3>뱃지 CSV 백업 / 복원</h3>

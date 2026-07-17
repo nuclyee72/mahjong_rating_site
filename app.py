@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint, request, jsonify, render_template, Response, redirect, url_for
+from flask import Flask, Blueprint, request, jsonify, render_template, Response, redirect, url_for, session
 from flask_cors import CORS
 import sqlite3
 from datetime import datetime
@@ -6,7 +6,9 @@ import os
 import io
 import csv
 import json
+import secrets
 import importlib.util as _ilu
+from functools import wraps
 from PIL import Image, ImageOps
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,16 +25,44 @@ CLUB_NAME = "<동아리명>"  # 동아리 이름 (변경 가능)
 
 # 마작 포인트 계산용 설정은 config.json에서 관리합니다.
 
+# 관리자 비밀번호. 외부(madang_web)에서 configure()로 주입되거나,
+# 단독 실행 시 __main__ 블록에서 채워집니다.
+ADMIN_PASSWORD = None
 
-def configure(db_path=None, config_path=None, club_name=None):
-    """외부 프로젝트(madang_web 등)에서 DB/Config 경로와 동아리명을 주입할 때 사용합니다."""
-    global DB_PATH, CONFIG_PATH, CLUB_NAME
+
+def configure(db_path=None, config_path=None, club_name=None, admin_password=None):
+    """외부 프로젝트(madang_web 등)에서 DB/Config 경로, 동아리명, 관리자 비밀번호를 주입할 때 사용합니다."""
+    global DB_PATH, CONFIG_PATH, CLUB_NAME, ADMIN_PASSWORD
     if db_path:
         DB_PATH = db_path
     if config_path:
         CONFIG_PATH = config_path
     if club_name:
         CLUB_NAME = club_name
+    if admin_password:
+        ADMIN_PASSWORD = admin_password
+
+
+def require_admin_page(f):
+    """세션에 로그인된 관리자만 통과. 브라우저로 직접 열람/제출하는 페이지·폼 라우트용
+    (미인증 시 로그인 페이지로 리다이렉트)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("is_admin"):
+            return redirect(url_for("mahjong.admin_login", next=request.path))
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def require_admin_api(f):
+    """세션에 로그인된 관리자만 통과. fetch()로 호출되는 JSON API 라우트용
+    (미인증 시 401 JSON을 반환)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("is_admin"):
+            return jsonify({"error": "관리자 로그인이 필요합니다."}), 401
+        return f(*args, **kwargs)
+    return wrapper
 
 
 
@@ -209,6 +239,7 @@ def create_game():
 
 
 @mahjong_bp.route("/api/games/<int:game_id>", methods=["DELETE"])
+@require_admin_api
 def delete_game(game_id):
     conn = get_db()
     cur = conn.execute("DELETE FROM games WHERE id = ?", (game_id,))
@@ -300,6 +331,7 @@ def export_games():
 # ---- 개인전 CSV 업로드 ----
 
 @mahjong_bp.route("/import", methods=["GET", "POST"])
+@require_admin_page
 def import_games():
     if request.method == "GET":
         return f"""
@@ -475,6 +507,7 @@ def create_tournament_game():
 
 
 @mahjong_bp.route("/api/tournament_games/<int:game_id>", methods=["DELETE"])
+@require_admin_api
 def delete_tournament_game(game_id):
     conn = get_db()
     cur = conn.execute("DELETE FROM tournament_games WHERE id = ?", (game_id,))
@@ -491,6 +524,8 @@ def delete_tournament_game(game_id):
 @mahjong_bp.route("/api/badges", methods=["GET", "POST"])
 def badges_api():
     if request.method == "POST":
+        if not session.get("is_admin"):
+            return jsonify({"error": "관리자 로그인이 필요합니다."}), 401
         data = request.get_json() or {}
         try:
             code = int(data.get("code", 0))
@@ -531,6 +566,7 @@ def badges_api():
 
 
 @mahjong_bp.route("/api/badges/<int:badge_id>", methods=["DELETE"])
+@require_admin_api
 def delete_badge(badge_id):
     conn = get_db()
     cur = conn.execute("SELECT code FROM badges WHERE id = ?", (badge_id,))
@@ -586,6 +622,8 @@ def player_badges_api():
         ])
 
     # ===== POST (기존 assign_badge 내용 그대로) =====
+    if not session.get("is_admin"):
+        return jsonify({"error": "관리자 로그인이 필요합니다."}), 401
     data = request.get_json() or {}
     player_name = str(data.get("player_name", "")).strip()
     try:
@@ -650,6 +688,7 @@ def list_player_badges(player_name):
 
 
 @mahjong_bp.route("/api/player_badges/<int:assign_id>", methods=["DELETE"])
+@require_admin_api
 def delete_player_badge(assign_id):
     conn = get_db()
     cur = conn.execute("DELETE FROM player_badges WHERE id = ?", (assign_id,))
@@ -695,6 +734,7 @@ def export_badges():
 
 
 @mahjong_bp.route("/import_badges", methods=["GET", "POST"])
+@require_admin_page
 def import_badges():
     if request.method == "GET":
         return f"""
@@ -850,6 +890,7 @@ def export_player_badges():
 
 
 @mahjong_bp.route("/import_player_badges", methods=["GET", "POST"])
+@require_admin_page
 def import_player_badges():
     if request.method == "GET":
         return f"""
@@ -1005,6 +1046,7 @@ def archive_games_api(archive_id):
 
 
 @mahjong_bp.route("/api/archives/<int:archive_id>", methods=["DELETE"])
+@require_admin_api
 def delete_archive(archive_id):
     conn = get_db()
     conn.execute("DELETE FROM archive_games WHERE archive_id = ?", (archive_id,))
@@ -1017,6 +1059,7 @@ def delete_archive(archive_id):
     return jsonify({"ok": True})
 
 @mahjong_bp.route("/admin/archive_import", methods=["POST"])
+@require_admin_page
 def admin_archive_import():
     archive_name = (request.form.get("archive_name") or "").strip()
     file = request.files.get("file")
@@ -1208,6 +1251,7 @@ def export_tournament_games():
 # ---- 대회전 CSV 업로드 ----
 
 @mahjong_bp.route("/import_tournament", methods=["GET", "POST"])
+@require_admin_page
 def import_tournament_games():
     if request.method == "GET":
         return f"""
@@ -1327,6 +1371,7 @@ def import_tournament_games():
 # ================== 개인전 기록 초기화(시즌 리셋) ==================
 
 @mahjong_bp.route("/api/admin/reset_games", methods=["POST"])
+@require_admin_api
 def reset_games():
     """
     모든 개인전 대국 기록을 삭제하고 ID도 다시 1부터 시작하도록 초기화합니다.
@@ -1351,6 +1396,7 @@ def reset_games():
     return jsonify({"ok": True})
 
 @mahjong_bp.route("/api/admin/reset_tournament", methods=["POST"])
+@require_admin_api
 def reset_tournament():
     """
     모든 대회 대국 기록을 삭제하고 ID도 다시 1부터 시작하도록 초기화합니다.
@@ -1381,8 +1427,61 @@ def index_page():
     return render_template("index.html", club_name=CLUB_NAME, is_admin=False)
 
 @mahjong_bp.route("/admin")
+@require_admin_page
 def admin_page():
     return render_template("index.html", club_name=CLUB_NAME, is_admin=True)
+
+
+@mahjong_bp.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = None
+    next_url = request.args.get("next") or url_for("mahjong.admin_page")
+    if request.method == "POST":
+        pw = request.form.get("password", "")
+        if ADMIN_PASSWORD and pw == ADMIN_PASSWORD:
+            session["is_admin"] = True
+            return redirect(request.form.get("next") or next_url)
+        error = "비밀번호가 올바르지 않습니다."
+
+    error_html = f'<p style="color:#c0392b;">{error}</p>' if error else ""
+    return f"""
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <title>관리자 로그인 - {CLUB_NAME} 마작 레이팅</title>
+      <link rel="stylesheet" href="/static/style.css">
+    </head>
+    <body>
+      <div class="top-bar">
+        <h1>{CLUB_NAME} 마작 레이팅 관리자 로그인</h1>
+        <div class="view-switch">
+          <a href="/" class="view-switch-btn">메인으로 돌아가기</a>
+        </div>
+      </div>
+      <div class="main-layout">
+        <div class="left-panel">
+          <section class="games-panel">
+            <h2>관리자 로그인</h2>
+            {error_html}
+            <form method="post">
+              <input type="hidden" name="next" value="{next_url}">
+              <p><input type="password" name="password" placeholder="관리자 비밀번호" required autofocus></p>
+              <p><button type="submit">로그인</button></p>
+            </form>
+          </section>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+
+@mahjong_bp.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    session.pop("is_admin", None)
+    return redirect(url_for("mahjong.index_page"))
+
 
 app.register_blueprint(mahjong_bp, url_prefix="/")
 
@@ -1404,6 +1503,33 @@ if _review_spec is not None and os.path.exists(_review_app_path):
 else:
     print("[WARN] mahjong_rating_review submodule not found, skipping /review")
 
+def _get_or_create_secret(path, label):
+    """secret 파일이 있으면 읽고, 없으면 새로 생성해서 저장합니다 (instance/ 는 git에 커밋되지 않음)."""
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            value = f.read().strip()
+        if value:
+            return value
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    value = secrets.token_urlsafe(16)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(value)
+    print(f"[INFO] {label}이(가) 없어 새로 생성했습니다 → {path}")
+    print(f"[INFO] {label}: {value}")
+    return value
+
+
 if __name__ == "__main__":
+    # 단독 실행(madang_web 없이) 시에는 configure()가 호출되지 않으므로
+    # 세션 secret key와 관리자 비밀번호를 직접 준비합니다.
+    _instance_dir = os.path.join(BASE_DIR, "instance")
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY") or _get_or_create_secret(
+        os.path.join(_instance_dir, "flask_secret.key"), "Flask SECRET_KEY"
+    )
+    if not ADMIN_PASSWORD:
+        ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or _get_or_create_secret(
+            os.path.join(_instance_dir, "admin_password.txt"), "관리자 비밀번호"
+        )
+
     init_db()  # 단독 실행 시 항상 DB 초기화 (CREATE TABLE IF NOT EXISTS이므로 안전)
     app.run(host="0.0.0.0", port=5000, debug=True)

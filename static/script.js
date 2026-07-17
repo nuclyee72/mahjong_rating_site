@@ -1,3 +1,16 @@
+// ===== 공통 유틸 =====
+function escapeHTML(str) {
+  return String(str).replace(/[&<>'"]/g,
+    tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag)
+  );
+}
+
 // ===== 공통 상수 =====
 const API_BASE = "/mahjong_rating";
 const START_SCORE = (window.GAME_CONFIG && window.GAME_CONFIG.start_score) ? Number(window.GAME_CONFIG.start_score) : 25000;
@@ -282,7 +295,7 @@ function renderGameList(tbodyId, allGames, options = {}) {
       const score = scores[i];
       const pt = pts[i];
 
-      td.innerHTML = `<strong>${name}</strong><br>${score} (${pt})`;
+      td.innerHTML = `<strong>${escapeHTML(name)}</strong><br>${score} (${pt})`;
       if (ranks[i] === 1) td.classList.add("winner-cell");
     }
 
@@ -333,7 +346,7 @@ function renderPlayerGameRecords(tbodyId, gameRecords) {
 
     rec.names.forEach((n, i) => {
       const td = document.createElement("td");
-      td.innerHTML = `<strong>${n}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
+      td.innerHTML = `<strong>${escapeHTML(n)}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
       const isWinner = rec.ranks[i] === 1;
       const isMyPlayer = i === rec.myIndex;
 
@@ -423,7 +436,7 @@ function renderRankingTable(tbodyId, players, sortState, tableIdForIndicators, e
     tr.className = ""
     tr.innerHTML = `
       <td>${idx + 1}</td>
-      <td>${p.name}</td>
+      <td>${escapeHTML(p.name)}</td>
       <td>${p.games}</td>
       <td>${Number(p.total_pt).toFixed(1)}</td>
       <td>${Number(p.avg_pt).toFixed(1)}</td>
@@ -820,7 +833,7 @@ function renderStatsForPlayer(name) {
   // Summary
   summaryDiv.innerHTML = `
         <div class="stats-summary-main">
-          <div><span class="stats-label">플레이어</span> <span class="stats-value">${name}</span></div>
+          <div><span class="stats-label">플레이어</span> <span class="stats-value">${escapeHTML(name)}</span></div>
           <div><span class="stats-label">대국 수</span> <span class="stats-value">${detail.games}</span></div>
           <div><span class="stats-label">총 pt</span> <span class="stats-value">${detail.total_pt.toFixed(1)}</span></div>
           <div><span class="stats-label">연대율</span> <span class="stats-value">${detail.yonde_rate.toFixed(1)}%</span></div>
@@ -844,7 +857,7 @@ function renderStatsForPlayer(name) {
     detail.coPlayers.forEach((c, ci) => {
       const tr = document.createElement("tr");
       tr.className = ""
-      tr.innerHTML = `<td>${c.name}</td><td>${c.games}</td><td>${c.my_avg_rank.toFixed(2)}</td><td>${c.co_avg_rank.toFixed(2)}</td>`;
+      tr.innerHTML = `<td>${escapeHTML(c.name)}</td><td>${c.games}</td><td>${c.my_avg_rank.toFixed(2)}</td><td>${c.co_avg_rank.toFixed(2)}</td>`;
       coTbody.appendChild(tr);
     });
   } else {
@@ -1281,7 +1294,7 @@ async function reloadArchiveList() {
       ARCHIVES.forEach((a, ai) => {
         const tr = document.createElement("tr");
         tr.className = ""
-        tr.innerHTML = `<td>${a.name}</td><td>${formatKoreanTime(a.created_at)}</td><td>${a.game_count || 0}</td><td></td>`;
+        tr.innerHTML = `<td>${escapeHTML(a.name)}</td><td>${formatKoreanTime(a.created_at)}</td><td>${a.game_count || 0}</td><td></td>`;
         const btn = document.createElement("button");
         btn.textContent = "삭제";
         btn.onclick = () => {
@@ -1408,7 +1421,7 @@ function renderArchiveStatsForPlayer(name) {
   // Summary
   summaryDiv.innerHTML = `
     <div class="stats-summary-main">
-      <div><span class="stats-label">플레이어</span> <span class="stats-value">${name}</span></div>
+      <div><span class="stats-label">플레이어</span> <span class="stats-value">${escapeHTML(name)}</span></div>
       <div><span class="stats-label">대국 수</span> <span class="stats-value">${detail.games}</span></div>
       <div><span class="stats-label">총 pt</span> <span class="stats-value">${detail.total_pt.toFixed(1)}</span></div>
       <div><span class="stats-label">연대율</span> <span class="stats-value">${detail.yonde_rate.toFixed(1)}%</span></div>
@@ -1435,7 +1448,7 @@ function renderArchiveStatsForPlayer(name) {
       detail.coPlayers.forEach((c, ci) => {
         const tr = document.createElement("tr");
         tr.className = ""
-        tr.innerHTML = `<td>${c.name}</td><td>${c.games}</td><td>${c.my_avg_rank.toFixed(2)}</td><td>${c.co_avg_rank.toFixed(2)}</td>`;
+        tr.innerHTML = `<td>${escapeHTML(c.name)}</td><td>${c.games}</td><td>${c.my_avg_rank.toFixed(2)}</td><td>${c.co_avg_rank.toFixed(2)}</td>`;
         coTbody.appendChild(tr);
       });
     } else {
@@ -1455,7 +1468,7 @@ function renderArchiveStatsForPlayer(name) {
         tr.appendChild(tdTime);
         rec.names.forEach((n, i) => {
           const td = document.createElement("td");
-          td.innerHTML = `<strong>${n}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
+          td.innerHTML = `<strong>${escapeHTML(n)}</strong><br>${rec.scores[i]} (${rec.pts[i].toFixed(1)})`;
           const isWinner = rec.ranks[i] === 1;
           const isMyPlayer = i === rec.myIndex;
           if (isWinner) {
@@ -1650,7 +1663,7 @@ function renderSeasonRankingTable() {
     tr.className = ""
     tr.innerHTML = `
             <td>${idx + 1}</td>
-            <td>${p.name}</td>
+            <td>${escapeHTML(p.name)}</td>
             <td>${p.total_pt_score.toFixed(1)}</td>
             <td>${p.games_score.toFixed(1)}</td>
             <td>${p.tournament_score.toFixed(1)}</td>
@@ -1729,7 +1742,7 @@ async function reloadBadgeList() {
       groupBadges.forEach(b => {
         const tr = document.createElement("tr");
         tr.style.display = 'none';
-        tr.innerHTML = `<td>${b.code}</td><td>${b.name}</td><td>${b.grade}</td><td>${b.description || ""}</td>`;
+        tr.innerHTML = `<td>${b.code}</td><td>${escapeHTML(b.name)}</td><td>${escapeHTML(b.grade)}</td><td>${escapeHTML(b.description || "")}</td>`;
         tbody.appendChild(tr);
         rows.push(tr);
       });
