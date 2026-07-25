@@ -1,3 +1,26 @@
+// ===== 다크 모드 토글 =====
+(function () {
+  const THEME_KEY = 'madang-theme';
+  function setTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    localStorage.setItem(THEME_KEY, theme);
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+    btn.addEventListener('click', function () {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      setTheme(isDark ? 'light' : 'dark');
+    });
+  }
+})();
+
 // ===== 공통 유틸 =====
 function escapeHTML(str) {
   return String(str).replace(/[&<>'"]/g,
