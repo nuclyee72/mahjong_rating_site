@@ -239,7 +239,6 @@ def create_game():
 
 
 @mahjong_bp.route("/api/games/<int:game_id>", methods=["DELETE"])
-@require_admin_api
 def delete_game(game_id):
     conn = get_db()
     cur = conn.execute("DELETE FROM games WHERE id = ?", (game_id,))
@@ -507,7 +506,6 @@ def create_tournament_game():
 
 
 @mahjong_bp.route("/api/tournament_games/<int:game_id>", methods=["DELETE"])
-@require_admin_api
 def delete_tournament_game(game_id):
     conn = get_db()
     cur = conn.execute("DELETE FROM tournament_games WHERE id = ?", (game_id,))
