@@ -219,7 +219,17 @@
 
         <!-- (2) 플레이어 기록 + (3) 총 등수 통계 병합 -->
         <section class="stats-panel">
-          <h2>플레이어 기록</h2>
+          <div class="stats-panel-header">
+            <h2>플레이어 기록</h2>
+            <label class="season-switch" id="stats-season-switch-wrap" title="이번 시즌 / 전체 시즌 기록 전환">
+              <span class="season-switch-text season-switch-text-cur">이번 시즌</span>
+              <span class="season-switch-track">
+                <input type="checkbox" id="stats-season-switch">
+                <span class="season-switch-knob"></span>
+              </span>
+              <span class="season-switch-text season-switch-text-all">전체</span>
+            </label>
+          </div>
           <div class="stats-player-select">
             <label for="stats-player-select">플레이어 선택</label>
             <select id="stats-player-select">

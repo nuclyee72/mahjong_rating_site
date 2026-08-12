@@ -49,6 +49,12 @@ let STATS_PLAYER_LIST = [];    // ✅ 플레이어 기록 셀렉트 전용(뱃�
 
 let ALL_BADGES = [];
 
+// ===== 플레이어 기록: 이번 시즌 / 전체 시즌 토글 =====
+let STATS_SEASON_MODE = "cur"; // "cur" | "all" (기본: 이번 시즌)
+let ALL_TIME_GAMES = [];       // 아카이브 대국 + 현재 시즌 대국을 합친 캐시(최신순)
+let ALL_TIME_GAMES_LOADED = false;
+let ALL_TIME_GAMES_LOADING = null; // 진행 중인 로드 Promise(중복 요청 방지)
+
 let RANKING_VIEW_MODE = "pt"; // "pt" | "season"
 let TOURNAMENT_STATS = {};    // { [name]: { games, sumPosPt } }
 let SEASON_SUMMARY = [];      // 시즌 pt용 표 데이터
@@ -646,6 +652,7 @@ async function loadGamesAndRanking() {
   // 최신순 정렬
   games = (games || []).slice().sort((a, b) => (b.id || 0) - (a.id || 0));
   ALL_GAMES = games;
+  ALL_TIME_GAMES_LOADED = false; // 이번 시즌 대국이 바뀌었으므로 "전체 시즌" 캐시 무효화
 
   // 1. 대국 기록 렌더링
   renderGameList("games-tbody", games, {
@@ -676,6 +683,11 @@ async function loadGamesAndRanking() {
   // 5. 랭킹 렌더링
   renderMainRanking();
 
+  // "전체 시즌" 보기 중이었다면 대국이 바뀐 것을 반영해 캐시를 다시 채워둔다
+  if (STATS_SEASON_MODE === "all") {
+    await ensureAllTimeGames();
+  }
+
   // 6. 통계 셀렉트 업데이트
   // updateStatsPlayerSelect(); // (renderMainRanking나 rebuildStatsPlayerList에서 호출됨)
   await rebuildStatsPlayerList();
@@ -684,11 +696,102 @@ async function loadGamesAndRanking() {
 
 // ======================= 플레이어 기록 =======================
 
+const LAST_STATS_PLAYER_KEY = "grillmadang_last_stats_player";
+
+function saveLastStatsPlayer(name) {
+  try {
+    if (name) localStorage.setItem(LAST_STATS_PLAYER_KEY, name);
+    else localStorage.removeItem(LAST_STATS_PLAYER_KEY);
+  } catch (e) { /* localStorage 사용 불가 시 무시 */ }
+}
+
+function loadLastStatsPlayer() {
+  try {
+    return localStorage.getItem(LAST_STATS_PLAYER_KEY) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function setupStatsView() {
   const select = document.getElementById("stats-player-select");
   if (select) {
-    select.addEventListener("change", () => renderStatsForPlayer(select.value));
+    select.addEventListener("change", () => {
+      saveLastStatsPlayer(select.value);
+      renderStatsForPlayer(select.value);
+    });
   }
+  setupStatsSeasonToggle();
+}
+
+// 현재 토글 상태에 맞는 대국 목록(이번 시즌만 / 전체 시즌 합산)을 반환
+function getStatsGames() {
+  return STATS_SEASON_MODE === "all" ? ALL_TIME_GAMES : ALL_GAMES;
+}
+
+// 아카이브(지난 시즌들)의 대국 기록을 불러와 현재 시즌 대국과 합쳐 캐시.
+// 아카이브 대국은 별도 테이블(id가 현재 시즌과 독립적으로 겹칠 수 있음)이라
+// id를 문자열로 접두어 처리해 충돌을 피한다.
+async function ensureAllTimeGames() {
+  if (ALL_TIME_GAMES_LOADED) return ALL_TIME_GAMES;
+  if (ALL_TIME_GAMES_LOADING) return ALL_TIME_GAMES_LOADING;
+
+  ALL_TIME_GAMES_LOADING = (async () => {
+    let archives = [];
+    try {
+      archives = await fetchJSON(`${API_BASE}/api/archives`);
+    } catch (e) {
+      console.warn("아카이브 목록 로드 실패:", e);
+      archives = [];
+    }
+
+    const archiveGamesLists = await Promise.all((archives || []).map(async (a) => {
+      try {
+        const games = await fetchJSON(`${API_BASE}/api/archives/${a.id}/games`);
+        return (games || []).map(g => ({ ...g, id: `A${g.id}` }));
+      } catch (e) {
+        console.warn("아카이브 대국 로드 실패:", a.id, e);
+        return [];
+      }
+    }));
+
+    const combined = [...ALL_GAMES, ...archiveGamesLists.flat()];
+    combined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // 최신순
+
+    ALL_TIME_GAMES = combined;
+    ALL_TIME_GAMES_LOADED = true;
+    return ALL_TIME_GAMES;
+  })();
+
+  try {
+    return await ALL_TIME_GAMES_LOADING;
+  } finally {
+    ALL_TIME_GAMES_LOADING = null;
+  }
+}
+
+function setupStatsSeasonToggle() {
+  const input = document.getElementById("stats-season-switch");
+  const wrap = document.getElementById("stats-season-switch-wrap");
+  if (!input || !wrap) return;
+
+  input.addEventListener("change", async () => {
+    const select = document.getElementById("stats-player-select");
+    const name = select ? select.value : "";
+
+    if (input.checked) {
+      STATS_SEASON_MODE = "all";
+      wrap.classList.add("is-all");
+      input.disabled = true;
+      await ensureAllTimeGames();
+      input.disabled = false;
+    } else {
+      STATS_SEASON_MODE = "cur";
+      wrap.classList.remove("is-all");
+    }
+
+    if (name) renderStatsForPlayer(name);
+  });
 }
 
 async function rebuildStatsPlayerList() {
@@ -707,6 +810,19 @@ async function rebuildStatsPlayerList() {
     });
   } catch (e) { console.warn("Failed to load badges:", e); }
 
+  // 지난 시즌(아카이브)에만 참가했던 플레이어도 선택 가능하도록 포함.
+  // 동시에 "전체 시즌" 캐시를 미리 채워둬서, 토글 시 대기 없이 바로 표시되게 한다.
+  try {
+    const allTime = await ensureAllTimeGames();
+    (allTime || []).forEach((g) => {
+      [g.player1_name, g.player2_name, g.player3_name, g.player4_name].forEach((raw) => {
+        const n = (raw || "").trim();
+        if (!n) return;
+        if (!map.has(n)) map.set(n, { name: n, games: 0, total_pt: 0 });
+      });
+    });
+  } catch (e) { console.warn("아카이브 플레이어 병합 실패:", e); }
+
   const all = Array.from(map.values());
   const withGames = all.filter(p => p.games > 0).sort((a, b) => b.total_pt - a.total_pt || b.games - a.games || String(a.name).localeCompare(String(b.name)));
   const badgeOnly = all.filter(p => p.games === 0).sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -718,7 +834,7 @@ async function rebuildStatsPlayerList() {
 function updateStatsPlayerSelect() {
   const select = document.getElementById("stats-player-select");
   if (!select) return;
-  const prev = select.value;
+  const prev = select.value || loadLastStatsPlayer();
   select.innerHTML = '<option value="">플레이어를 선택하세요</option>';
 
   const list = STATS_PLAYER_LIST.length ? STATS_PLAYER_LIST : (PLAYER_SUMMARY_ALL || []);
@@ -851,7 +967,7 @@ function renderStatsForPlayer(name) {
   renderRecentRankTrend(name, 10);
   renderGameIdPtChart(name, 10);
 
-  const detail = computePlayerDetailStats(name, ALL_GAMES);
+  const detail = computePlayerDetailStats(name, getStatsGames());
 
   // Summary
   summaryDiv.innerHTML = `
@@ -1794,7 +1910,7 @@ let statsChart = null; // Chart.js instance
 // Returns: { dates: [], totalPts: [], seasonScores: [], totalPtRanks: [], seasonScoreRanks: [] }
 function calculateDailyHistory(targetName) {
   // 1. 모든 게임(일반 + 대회)을 시간순 정렬
-  let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
+  let all = [...getStatsGames(), ...TOURNAMENT_GAMES];
   all.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   // 플레이어별 상태 추적
@@ -1898,7 +2014,7 @@ function renderHistoryGraph(targetName, range) {
 
   // 대회 게임 식별용 플래그 마킹
   TOURNAMENT_GAMES.forEach(g => g.is_tournament_flag = true);
-  ALL_GAMES.forEach(g => g.is_tournament_flag = false);
+  getStatsGames().forEach(g => g.is_tournament_flag = false);
 
   const fullHistory = calculateDailyHistory(targetName);
 
@@ -2031,10 +2147,11 @@ function renderGameIdPtChart(targetName, limit = 10) {
     statsGameIdPtChart = null;
   }
 
-  if (!targetName || !ALL_GAMES || ALL_GAMES.length === 0) return;
+  const sourceGames = getStatsGames();
+  if (!targetName || !sourceGames || sourceGames.length === 0) return;
 
   // 해당 플레이어가 참가한 게임만 시간순(ID 오름차순)으로 추출
-  const myGames = ALL_GAMES
+  const myGames = sourceGames
     .filter(g => {
       const names = [g.player1_name, g.player2_name, g.player3_name, g.player4_name]
         .map(n => (n || "").trim());
@@ -2195,7 +2312,7 @@ function renderRecentRankTrend(targetName, limit = 10) {
   if (!ctx) return;
 
   // 플레이어 게임 데이터 추출 (최신순)
-  let all = [...ALL_GAMES, ...TOURNAMENT_GAMES];
+  let all = [...getStatsGames(), ...TOURNAMENT_GAMES];
   all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const myGames = [];
