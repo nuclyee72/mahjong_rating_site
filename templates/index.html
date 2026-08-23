@@ -83,6 +83,9 @@
     </div>
     <div style="display: flex; align-items: center; gap: 6px; margin-left: 8px; flex-shrink: 0;">
       <button id="theme-toggle" type="button" class="btn-link" aria-label="다크 모드 전환">🌙</button>
+      {% if not is_admin %}
+      <a href="{{ url_for('mahjong.admin_login', next=url_for('mahjong.index_page')) }}" class="btn-link">관리자 로그인</a>
+      {% endif %}
       <a href="/" class="btn-link">홈으로</a>
     </div>
   </div>
