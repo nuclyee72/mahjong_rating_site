@@ -316,11 +316,11 @@ def export_games():
     csv_data = output.getvalue()
     output.close()
 
-    csv_bytes = csv_data.encode("cp949", errors="replace")
+    csv_bytes = csv_data.encode("utf-8-sig")
 
     return Response(
         csv_bytes,
-        mimetype="text/csv; charset=cp949",
+        mimetype="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": "attachment; filename=mahjong_rating.csv"
         },
@@ -722,11 +722,11 @@ def export_badges():
 
     csv_data = output.getvalue()
     output.close()
-    csv_bytes = csv_data.encode("cp949", errors="replace")
+    csv_bytes = csv_data.encode("utf-8-sig")
 
     return Response(
         csv_bytes,
-        mimetype="text/csv; charset=cp949",
+        mimetype="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=badges.csv"},
     )
 
@@ -878,11 +878,11 @@ def export_player_badges():
 
     csv_data = output.getvalue()
     output.close()
-    csv_bytes = csv_data.encode("cp949", errors="replace")
+    csv_bytes = csv_data.encode("utf-8-sig")
 
     return Response(
         csv_bytes,
-        mimetype="text/csv; charset=cp949",
+        mimetype="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=player_badges.csv"},
     )
 
@@ -1235,11 +1235,11 @@ def export_tournament_games():
     csv_data = output.getvalue()
     output.close()
 
-    csv_bytes = csv_data.encode("cp949", errors="replace")
+    csv_bytes = csv_data.encode("utf-8-sig")
 
     return Response(
         csv_bytes,
-        mimetype="text/csv; charset=cp949",
+        mimetype="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": "attachment; filename=mahjong_tournament.csv"
         },
