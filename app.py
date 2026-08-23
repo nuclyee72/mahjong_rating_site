@@ -874,35 +874,22 @@ def import_badges():
 def export_player_badges():
     conn = get_db()
     cur = conn.execute("""
-        SELECT
-          pb.player_name,
-          pb.badge_code,
-          pb.granted_at,
-          b.name AS badge_name,
-          b.grade AS badge_grade,
-          b.description AS badge_description
-        FROM player_badges pb
-        LEFT JOIN badges b ON pb.badge_code = b.code
-        ORDER BY pb.id ASC
+        SELECT player_name, badge_code, granted_at
+        FROM player_badges
+        ORDER BY id ASC
     """)
     rows = cur.fetchall()
     conn.close()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "player_name", "badge_code", "granted_at",
-        "badge_name", "badge_grade", "badge_description"
-    ])
+    writer.writerow(["player_name", "badge_code", "granted_at"])
 
     for r in rows:
         writer.writerow([
             r["player_name"],
             r["badge_code"],
             r["granted_at"],
-            r["badge_name"] or "",
-            r["badge_grade"] or "",
-            r["badge_description"] or "",
         ])
 
     csv_data = output.getvalue()
