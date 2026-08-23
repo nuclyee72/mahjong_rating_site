@@ -75,7 +75,9 @@
     <div class="view-switch">
       <button class="view-switch-btn active" data-view="personal">레이팅</button>
       <button class="view-switch-btn" data-view="stats">플레이어 기록</button>
-      <button class="view-switch-btn" data-view="tournament">대회</button>
+      {% if tournament_visible or is_admin %}
+      <button class="view-switch-btn" data-view="tournament" id="tournament-tab-btn">대회</button>
+      {% endif %}
       <button class="view-switch-btn" data-view="archive">아카이브</button>
       {% if is_admin %}
       <button class="view-switch-btn" data-view="admin">관리자</button>
@@ -100,22 +102,22 @@
           <h2>대국 기록 입력</h2>
           <form id="game-form" method="post" autocomplete="off">
             <div class="row">
-              <label>P1(동)</label>
+              <label>東</label>
               <input name="player1_name" placeholder="플레이어 1 이름" required>
               <input name="player1_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P2(남)</label>
+              <label>南</label>
               <input name="player2_name" placeholder="플레이어 2 이름" required>
               <input name="player2_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P3(서)</label>
+              <label>西</label>
               <input name="player3_name" placeholder="플레이어 3 이름" required>
               <input name="player3_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P4(북)</label>
+              <label>北</label>
               <input name="player4_name" placeholder="플레이어 4 이름" required>
               <input name="player4_score" type="text" placeholder="점수" required>
             </div>
@@ -351,22 +353,22 @@
           <h2>대회 대국 기록 입력</h2>
           <form id="tournament-game-form" method="post" autocomplete="off">
             <div class="row">
-              <label>P1(동)</label>
+              <label>東</label>
               <input name="player1_name" placeholder="플레이어 1 이름" required>
               <input name="player1_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P2(남)</label>
+              <label>南</label>
               <input name="player2_name" placeholder="플레이어 2 이름" required>
               <input name="player2_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P3(서)</label>
+              <label>西</label>
               <input name="player3_name" placeholder="플레이어 3 이름" required>
               <input name="player3_score" type="text" placeholder="점수" required>
             </div>
             <div class="row">
-              <label>P4(북)</label>
+              <label>北</label>
               <input name="player4_name" placeholder="플레이어 4 이름" required>
               <input name="player4_score" type="text" placeholder="점수" required>
             </div>
@@ -641,14 +643,110 @@
   <!-- ================= 관리자 기능 화면 ================= -->
   {% if is_admin %}
   <div id="admin-view" class="view" style="display:none;">
-    <div class="main-layout">
-      <div class="left-panel">
-        <section class="admin-panel" style="text-align:right;">
-          <form method="post" action="{{ url_for('mahjong.admin_logout') }}" style="display:inline;">
-            <button type="submit" class="import-link" style="cursor:pointer;">관리자 로그아웃</button>
-          </form>
-        </section>
-        <section class="admin-panel">
+    <div class="admin-single-col">
+      <section class="admin-panel" style="text-align:right;">
+        <form method="post" action="{{ url_for('mahjong.admin_logout') }}" style="display:inline;">
+          <button type="submit" class="import-link" style="cursor:pointer;">관리자 로그아웃</button>
+        </form>
+      </section>
+
+      <!-- 레이팅 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="rating">
+          <span class="admin-group-icon">▶</span>레이팅
+        </button>
+        <div class="admin-group-body" style="display:none;">
+          <section class="admin-panel">
+            <h3>개인전 기록 초기화</h3>
+            <p class="hint-text">
+              새 시즌 시작 시 사용하세요.<br>
+              모든 개인전 대국 기록이 삭제되며, 되돌릴 수 없습니다.
+            </p>
+            <button id="reset-games-btn" class="danger-btn">개인전 기록 전체 삭제</button>
+          </section>
+        </div>
+      </div>
+
+      <!-- 대회 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="tournament">
+          <span class="admin-group-icon">▶</span>대회
+        </button>
+        <div class="admin-group-body" style="display:none;">
+          <section class="admin-panel">
+            <h3>대회 창 표시</h3>
+            <p class="hint-text">
+              꺼두면 상단 메뉴에서 “대회” 탭이 일반 사용자에게 보이지 않습니다. (관리자에게는 계속 보입니다)
+            </p>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+              <input type="checkbox" id="tournament-visible-toggle">
+              <span id="tournament-visible-label">대회 탭 표시</span>
+            </label>
+          </section>
+
+          <section class="admin-panel">
+            <h3>대회 기록 초기화</h3>
+            <p class="hint-text">
+              모든 대회 대국 기록이 삭제되며, 되돌릴 수 없습니다.
+            </p>
+            <button id="reset-tournament-btn" class="danger-btn">대회 기록 전체 삭제</button>
+          </section>
+        </div>
+      </div>
+
+      <!-- 아카이브 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="archive">
+          <span class="admin-group-icon">▶</span>아카이브
+        </button>
+        <div class="admin-group-body" style="display:none;">
+          <section class="admin-panel">
+            <h3>아카이브 생성 (CSV 가져오기)</h3>
+            <p class="hint-text">
+              한 시즌의 대국 기록이 담긴 CSV 파일을 가져오면<br>
+              새 아카이브로 저장됩니다. (형식은 /export 로 받은 CSV와 동일하면 편해요.)
+            </p>
+            <form id="archive-upload-form" method="post" action="{{ url_for('mahjong.admin_archive_import') }}" enctype="multipart/form-data"
+              autocomplete="off">
+              <div class="form-row">
+                <label>아카이브 이름</label>
+                <input type="text" name="archive_name" placeholder="예: 2024 시즌 1" required>
+              </div>
+              <div class="form-row">
+                <label>CSV 파일</label>
+                <input type="file" name="file" accept=".csv" required>
+              </div>
+              <button type="submit">가져오기</button>
+            </form>
+          </section>
+
+          <section class="admin-panel">
+            <h3>아카이브 목록</h3>
+            <table class="badge-table">
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>생성 시각</th>
+                  <th>대국 수</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="archive-list-tbody">
+                <tr>
+                  <td colspan="4" class="ranking-placeholder">아카이브 없음</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </div>
+
+      <!-- 뱃지 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="badge">
+          <span class="admin-group-icon">▶</span>뱃지
+        </button>
+        <div class="admin-group-body" style="display:none;">
           <section class="admin-panel">
             <h3>뱃지 CSV 백업 / 복원</h3>
             <div class="games-header-right">
@@ -664,101 +762,40 @@
             </p>
           </section>
 
-          <h2 style="cursor:pointer; user-select:none;" onclick="
-            const t = document.getElementById('badge-table-container');
-            const i = document.getElementById('badge-title-icon');
-            if (t.style.display === 'none') {
-              t.style.display = '';
-              i.textContent = '▼';
-            } else {
-              t.style.display = 'none';
-              i.textContent = '▶';
-            }
-          "><span id="badge-title-icon" style="display:inline-block; width:20px; font-size:18px;">▶</span>뱃지 목록</h2>
-          <div id="badge-table-container" style="display:none;">
-            <table class="badge-table">
-              <thead>
-                <tr>
-                  <th>코드</th>
-                  <th>이름</th>
-                  <th>등급</th>
-                  <th>설명</th>
-                </tr>
-              </thead>
-              <tbody id="badge-list-tbody">
-                <tr>
-                  <td colspan="4" class="ranking-placeholder">뱃지 없음</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-
-
-        <section class="admin-panel">
-          <h3>아카이브 생성 (CSV 가져오기)</h3>
-          <p class="hint-text">
-            한 시즌의 대국 기록이 담긴 CSV 파일을 가져오면<br>
-            새 아카이브로 저장됩니다. (형식은 /export 로 받은 CSV와 동일하면 편해요.)
-          </p>
-          <form id="archive-upload-form" method="post" action="{{ url_for('mahjong.admin_archive_import') }}" enctype="multipart/form-data"
-            autocomplete="off">
-            <div class="form-row">
-              <label>아카이브 이름</label>
-              <input type="text" name="archive_name" placeholder="예: 2024 시즌 1" required>
+          <section class="admin-panel">
+            <h2 style="cursor:pointer; user-select:none;" onclick="
+              const t = document.getElementById('badge-table-container');
+              const i = document.getElementById('badge-title-icon');
+              if (t.style.display === 'none') {
+                t.style.display = '';
+                i.textContent = '▼';
+              } else {
+                t.style.display = 'none';
+                i.textContent = '▶';
+              }
+            "><span id="badge-title-icon" style="display:inline-block; width:20px; font-size:18px;">▶</span>뱃지 목록</h2>
+            <div id="badge-table-container" style="display:none;">
+              <table class="badge-table">
+                <thead>
+                  <tr>
+                    <th>코드</th>
+                    <th>이름</th>
+                    <th>등급</th>
+                    <th>설명</th>
+                  </tr>
+                </thead>
+                <tbody id="badge-list-tbody">
+                  <tr>
+                    <td colspan="4" class="ranking-placeholder">뱃지 없음</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="form-row">
-              <label>CSV 파일</label>
-              <input type="file" name="file" accept=".csv" required>
-            </div>
-            <button type="submit">가져오기</button>
-          </form>
-        </section>
-
-        <section class="admin-panel">
-          <h3>아카이브 목록</h3>
-          <table class="badge-table">
-            <thead>
-              <tr>
-                <th>이름</th>
-                <th>생성 시각</th>
-                <th>대국 수</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="archive-list-tbody">
-              <tr>
-                <td colspan="4" class="ranking-placeholder">아카이브 없음</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      </div>
-
-      <div class="right-panel">
-
-
-        <section class="admin-panel">
-          <h3>개인전 기록 초기화</h3>
-          <p class="hint-text">
-            새 시즌 시작 시 사용하세요.<br>
-            모든 개인전 대국 기록이 삭제되며, 되돌릴 수 없습니다.
-          </p>
-          <button id="reset-games-btn" class="danger-btn">개인전 기록 전체 삭제</button>
-        </section>
-
-        <section class="admin-panel">
-          <h3>대회 기록 초기화</h3>
-          <p class="hint-text">
-            모든 대회 대국 기록이 삭제되며, 되돌릴 수 없습니다.
-          </p>
-          <button id="reset-tournament-btn" class="danger-btn">대회 기록 전체 삭제</button>
-        </section>
-
+          </section>
         </div>
       </div>
     </div>
+  </div>
   {% endif %}
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>

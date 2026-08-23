@@ -1379,6 +1379,47 @@ textarea {
   }
 }
 
+/* ==================== 관리자 화면 (아코디언) ==================== */
+.admin-single-col {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.admin-group {
+  margin-top: 10px;
+}
+
+.admin-group-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background-color: #f3f3f3;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.admin-group-header:hover {
+  background-color: #ececec;
+}
+
+.admin-group-icon {
+  display: inline-block;
+  width: 18px;
+  font-size: 12px;
+  color: #666;
+}
+
+.admin-group-body .admin-panel:first-child {
+  margin-top: 10px;
+}
+
 /* ==================== 다크 모드 ==================== */
 html[data-theme="dark"] {
   background-color: #14161a;
@@ -1425,6 +1466,20 @@ html[data-theme="dark"] .view-switch-btn.active {
   border-color: #5b8bff;
   background-color: #23345c;
   color: #a9c1ff;
+}
+
+html[data-theme="dark"] .admin-group-header {
+  border-color: #3a3f47;
+  background-color: #1f2228;
+  color: #dfe2e6;
+}
+
+html[data-theme="dark"] .admin-group-header:hover {
+  background-color: #2a2e36;
+}
+
+html[data-theme="dark"] .admin-group-icon {
+  color: #9aa0a8;
 }
 
 html[data-theme="dark"] .form-panel,

@@ -154,8 +154,37 @@ def init_db():
             player4_score INTEGER NOT NULL
         )
     """)
+
+    # 사이트 설정 (관리자 토글 등 key-value 저장)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
+
+
+def get_setting(key, default=None):
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+
+def set_setting(key, value):
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO settings (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    """, (key, value))
+    conn.commit()
+    conn.close()
+
+
+def is_tournament_visible():
+    return get_setting("tournament_visible", "1") != "0"
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -1418,16 +1447,40 @@ def reset_tournament():
     return jsonify({"ok": True})
 
 
+# ================== 사이트 설정 (대회 창 표시 on/off 등) ==================
+
+@mahjong_bp.route("/api/settings/tournament_visible", methods=["GET"])
+def get_tournament_visible_setting():
+    return jsonify({"visible": is_tournament_visible()})
+
+
+@mahjong_bp.route("/api/settings/tournament_visible", methods=["POST"])
+@require_admin_api
+def set_tournament_visible_setting():
+    data = request.get_json(silent=True) or {}
+    visible = bool(data.get("visible"))
+    set_setting("tournament_visible", "1" if visible else "0")
+    return jsonify({"ok": True, "visible": visible})
+
+
 # ================== 기본 페이지 ==================
 
 @mahjong_bp.route("/")
 def index_page():
-    return render_template("index.html", club_name=CLUB_NAME, is_admin=bool(session.get("is_admin")))
+    return render_template(
+        "index.html", club_name=CLUB_NAME,
+        is_admin=bool(session.get("is_admin")),
+        tournament_visible=is_tournament_visible(),
+    )
 
 @mahjong_bp.route("/admin")
 @require_admin_page
 def admin_page():
-    return render_template("index.html", club_name=CLUB_NAME, is_admin=True)
+    return render_template(
+        "index.html", club_name=CLUB_NAME,
+        is_admin=True,
+        tournament_visible=is_tournament_visible(),
+    )
 
 
 @mahjong_bp.route("/admin/login", methods=["GET", "POST"])

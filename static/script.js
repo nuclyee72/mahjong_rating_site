@@ -1817,6 +1817,39 @@ function renderSeasonRankingTable() {
 
 function setupAdminView() {
 
+  // 관리자 화면 아코디언 그룹 접기/펼치기
+  document.querySelectorAll(".admin-group-header").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const body = btn.nextElementSibling;
+      const icon = btn.querySelector(".admin-group-icon");
+      const isOpen = body.style.display !== "none";
+      body.style.display = isOpen ? "none" : "";
+      if (icon) icon.textContent = isOpen ? "▶" : "▼";
+    });
+  });
+
+  // 대회 창 표시 on/off
+  const tvToggle = document.getElementById("tournament-visible-toggle");
+  if (tvToggle) {
+    fetchJSON(`${API_BASE}/api/settings/tournament_visible`)
+      .then(res => { tvToggle.checked = !!(res && res.visible); })
+      .catch(() => { tvToggle.checked = true; });
+
+    tvToggle.addEventListener("change", async () => {
+      const visible = tvToggle.checked;
+      try {
+        await fetchJSON(`${API_BASE}/api/settings/tournament_visible`, {
+          method: "POST",
+          body: JSON.stringify({ visible }),
+        });
+        const tab = document.getElementById("tournament-tab-btn");
+        if (tab) tab.style.display = visible ? "" : "none";
+      } catch (e) {
+        tvToggle.checked = !visible; // 실패 시 되돌리기
+        alert("설정 저장에 실패했습니다.");
+      }
+    });
+  }
 
   // 초기화
   const rsb = document.getElementById("reset-games-btn");
