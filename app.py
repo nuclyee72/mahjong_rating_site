@@ -1450,6 +1450,511 @@ def set_tournament_visible_setting():
     return jsonify({"ok": True, "visible": visible})
 
 
+# ================== 시즌 수상자 자동 계산 ==================
+# 대국 기록 CSV를 업로드하면 시상별 수상자를 계산합니다.
+# (마작대회, 역만의 증표 관련 시상은 수동 판정 대상이라 제외)
+
+def _award_calc_pts(scores, cfg):
+    """점수 4개로 각자의 pt를 계산 (게임당 소수 1자리 반올림 후 합산 — 실제 랭킹 화면과 동일한 방식)."""
+    ret = cfg["RETURN_SCORE"]
+    uma_vals = cfg["UMA"]
+    oka = cfg["OKA_TO_1ST"]
+
+    order = sorted(range(4), key=lambda i: scores[i], reverse=True)
+    uma_for_player = [0, 0, 0, 0]
+    for rank, idx in enumerate(order):
+        uma_for_player[idx] = uma_vals[rank] + (oka if rank == 0 else 0)
+
+    pts = []
+    for i in range(4):
+        base = (scores[i] - ret) / 1000.0
+        pts.append(round(base + uma_for_player[i], 1))
+    return pts
+
+
+def _parse_games_csv_for_awards(raw_bytes):
+    """대국 기록 CSV(원본 형식 또는 /export 형식 모두 지원)를 파싱합니다."""
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "cp949"):
+        try:
+            text = raw_bytes.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        return None, "알 수 없는 인코딩입니다. UTF-8 또는 CP949로 저장해주세요."
+
+    sample = "\n".join(text.splitlines()[:5])
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+    except Exception:
+        dialect = csv.excel
+        dialect.delimiter = ","
+
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+
+    def pick(row, keys, default=""):
+        for k in keys:
+            if k in row and row[k] not in (None, ""):
+                return row[k]
+        return default
+
+    def pick_int(row, keys, default=0):
+        val = pick(row, keys, None)
+        if val is None or val == "":
+            return default
+        try:
+            return int(float(val))
+        except (ValueError, TypeError):
+            return default
+
+    games = []
+    for row in reader:
+        game_time = pick(row, ["created_at", "시간"])
+        names = [
+            str(pick(row, ["player1_name", "P1 이름", "P1이름"])).strip(),
+            str(pick(row, ["player2_name", "P2 이름", "P2이름"])).strip(),
+            str(pick(row, ["player3_name", "P3 이름", "P3이름"])).strip(),
+            str(pick(row, ["player4_name", "P4 이름", "P4이름"])).strip(),
+        ]
+        if not any(names):
+            continue
+        scores = [
+            pick_int(row, ["player1_score", "P1 점수", "P1점수"]),
+            pick_int(row, ["player2_score", "P2 점수", "P2점수"]),
+            pick_int(row, ["player3_score", "P3 점수", "P3점수"]),
+            pick_int(row, ["player4_score", "P4 점수", "P4점수"]),
+        ]
+        games.append({"created_at": game_time or "", "names": names, "scores": scores})
+
+    if not games:
+        return None, "CSV에서 읽을 수 있는 대국 기록이 없습니다."
+    return games, None
+
+
+def _build_player_stats(games):
+    """플레이어별 통계(총pt, 등수 분포, 토비, 최고점수, 폭주상용 pt 시퀀스, 사키행동상 등)를 계산합니다."""
+    cfg = get_config()["MAHJONG_CONFIG"]
+    raw = {}
+
+    for g in sorted(games, key=lambda g: g["created_at"]):
+        scores = g["scores"]
+        names = g["names"]
+        pts = _award_calc_pts(scores, cfg)
+
+        order = sorted(range(4), key=lambda i: scores[i], reverse=True)
+        ranks = [0, 0, 0, 0]
+        for rank, idx in enumerate(order):
+            ranks[idx] = rank + 1
+
+        for i in range(4):
+            name = names[i]
+            if not name:
+                continue
+            st = raw.setdefault(name, {
+                "games": 0, "total_pt": 0.0, "rank_counts": [0, 0, 0, 0],
+                "tobi_count": 0, "max_score": None, "pt_seq": [],
+                "near_start_count": 0,
+            })
+            st["games"] += 1
+            st["total_pt"] += pts[i]
+            st["rank_counts"][ranks[i] - 1] += 1
+            if scores[i] < 0:
+                st["tobi_count"] += 1
+            if st["max_score"] is None or scores[i] > st["max_score"]:
+                st["max_score"] = scores[i]
+            st["pt_seq"].append(pts[i])
+            if 24500 <= scores[i] <= 25500:
+                st["near_start_count"] += 1
+
+    stats = {}
+    for name, st in raw.items():
+        games_n = st["games"]
+        rc = st["rank_counts"]
+
+        # 폭주상: 연속된(시간순) 10국 pt 합의 최댓값
+        seq = st["pt_seq"]
+        burst_max10 = None
+        if len(seq) >= 10:
+            window = sum(seq[:10])
+            burst_max10 = window
+            for i in range(10, len(seq)):
+                window += seq[i] - seq[i - 10]
+                if window > burst_max10:
+                    burst_max10 = window
+
+        stats[name] = {
+            "games": games_n,
+            "total_pt": round(st["total_pt"], 1),
+            "rank_counts": rc,
+            "yonde_rate": round((rc[0] + rc[1]) * 100 / games_n, 1) if games_n else 0.0,
+            "last_avoid_rate": round((games_n - rc[3]) * 100 / games_n, 1) if games_n else 0.0,
+            "tobi_rate": round(st["tobi_count"] * 100 / games_n, 1) if games_n else 0.0,
+            "tobi_count": st["tobi_count"],
+            "max_score": st["max_score"],
+            "burst_max10": round(burst_max10, 1) if burst_max10 is not None else None,
+            "near_start_count": st["near_start_count"],
+        }
+    return stats
+
+
+def _competition_rank_top_n(entries, n, reverse=True):
+    """entries: [(name, value, games), ...]. 동점자는 같은 순위로 묶는 1224 방식 랭킹으로 상위 n위까지 반환."""
+    ranked = sorted(entries, key=lambda e: e[1], reverse=reverse)
+    result = []
+    rank = 0
+    prev_val = None
+    for idx, e in enumerate(ranked):
+        if prev_val is None or e[1] != prev_val:
+            rank = idx + 1
+            prev_val = e[1]
+        if rank > n:
+            break
+        result.append((e[0], e[1], e[2], rank))
+    return result
+
+
+def _fmt_award_value(metric, value):
+    if metric == "total_pt":
+        return f"{value:.1f} pt"
+    if metric == "games":
+        return f"{value}판"
+    if metric in ("yonde_rate", "last_avoid_rate", "tobi_rate"):
+        return f"{value:.1f}%"
+    if metric == "max_score":
+        return f"{value:,}점"
+    if metric == "burst_max10":
+        return f"{value:.1f} pt (연속 10국)"
+    if metric == "near_start_count":
+        return f"{value}회"
+    return str(value)
+
+
+# 파트별로 묶고, 같은 파트 안에서는 높은 등급(위 tier)을 받으면 그 사람은
+# 아래 tier 후보에서 빠지도록(상위 상 수상자는 하위 상 중복 수상 안 함) 순서대로 처리합니다.
+# suffix/badge_name은 "시즌 결산" 기능에서 뱃지 코드(시즌 블록 + suffix)와
+# 뱃지 이름(시즌 이름 + badge_name)을 자동 생성할 때 사용합니다.
+AWARD_PARTS = [
+    {
+        "part_name": "총pt",
+        "tiers": [
+            {"name": "TOP 1",  "suffix": 1, "badge_name": "총pt TOP 1",  "metric": "total_pt", "n": 1,  "min_games": 20, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3",  "suffix": 2, "badge_name": "총pt TOP 3",  "metric": "total_pt", "n": 3,  "min_games": 20, "grade": "골드",     "reverse": True},
+            {"name": "TOP 10", "suffix": 3, "badge_name": "총pt TOP 10", "metric": "total_pt", "n": 10, "min_games": 20, "grade": "실버",     "reverse": True},
+            {"name": "TOP -1", "suffix": 5, "badge_name": "총pt TOP -1", "metric": "total_pt", "n": 1,  "min_games": 20, "grade": "브론즈",   "reverse": False},
+        ],
+    },
+    {
+        "part_name": "참가상",
+        "tiers": [
+            {"name": "참가상", "suffix": 4, "badge_name": "참가상", "metric": "games", "min_games": 4, "grade": "브론즈", "mode": "all"},
+        ],
+    },
+    {
+        "part_name": "총 판수",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 6, "badge_name": "총 판수 TOP 1", "metric": "games", "n": 1, "min_games": 0, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3", "suffix": 7, "badge_name": "총 판수 TOP 3", "metric": "games", "n": 3, "min_games": 0, "grade": "골드",     "reverse": True},
+            {"name": "TOP 5", "suffix": 8, "badge_name": "총 판수 TOP 5", "metric": "games", "n": 5, "min_games": 0, "grade": "실버",     "reverse": True},
+        ],
+    },
+    {
+        "part_name": "연대율",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 11, "badge_name": "연대율 TOP 1", "metric": "yonde_rate", "n": 1, "min_games": 20, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3", "suffix": 12, "badge_name": "연대율 TOP 3", "metric": "yonde_rate", "n": 3, "min_games": 20, "grade": "골드",     "reverse": True},
+            {"name": "TOP 5", "suffix": 13, "badge_name": "연대율 TOP 5", "metric": "yonde_rate", "n": 5, "min_games": 20, "grade": "실버",     "reverse": True},
+        ],
+    },
+    {
+        "part_name": "라스회피",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 21, "badge_name": "라스회피 TOP 1", "metric": "last_avoid_rate", "n": 1, "min_games": 20, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3", "suffix": 22, "badge_name": "라스회피 TOP 3", "metric": "last_avoid_rate", "n": 3, "min_games": 20, "grade": "골드",     "reverse": True},
+        ],
+    },
+    {
+        "part_name": "최고점수",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 31, "badge_name": "최고점수 TOP 1", "metric": "max_score", "n": 1, "min_games": 0, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3", "suffix": 32, "badge_name": "최고점수 TOP 3", "metric": "max_score", "n": 3, "min_games": 0, "grade": "골드",     "reverse": True},
+        ],
+    },
+    {
+        "part_name": "토비율",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 51, "badge_name": "토비율 TOP 1", "metric": "tobi_rate", "n": 1, "min_games": 20, "grade": "브론즈", "reverse": True},
+        ],
+    },
+    {
+        "part_name": "폭주상",
+        "tiers": [
+            {"name": "TOP 1", "suffix": 81, "badge_name": "폭주상 TOP 1", "metric": "burst_max10", "n": 1, "min_games": 20, "grade": "플래티넘", "reverse": True},
+            {"name": "TOP 3", "suffix": 82, "badge_name": "폭주상 TOP 3", "metric": "burst_max10", "n": 3, "min_games": 20, "grade": "골드",     "reverse": True},
+        ],
+    },
+    {
+        "part_name": "사키행동상",
+        "tiers": [
+            {"name": "사키행동상", "suffix": 91, "badge_name": "사키행동상", "metric": "near_start_count", "n": 1, "min_games": 0, "grade": "골드", "reverse": True},
+        ],
+    },
+]
+
+# 자동 계산 대상이 아니지만(수동 판정) 시즌 뱃지 세트를 만들 때 같이 생성해두는 뱃지들.
+MANUAL_SEASON_BADGES = [
+    {"suffix": 61, "badge_name": "역만의 증표", "grade": "플래티넘"},
+]
+
+
+def _compute_awards(games):
+    stats = _build_player_stats(games)
+    parts_result = []
+
+    for part in AWARD_PARTS:
+        excluded = set()
+        rows = []
+
+        for tier in part["tiers"]:
+            metric = tier["metric"]
+            min_games = tier["min_games"]
+            entries = [
+                (name, s[metric], s["games"])
+                for name, s in stats.items()
+                if s.get(metric) is not None and s["games"] >= min_games and name not in excluded
+            ]
+
+            if tier.get("mode") == "all":
+                entries.sort(key=lambda e: (-e[2], e[0]))
+                winners = [(e[0], e[1], e[2], None) for e in entries]
+            else:
+                winners = _competition_rank_top_n(entries, tier["n"], reverse=tier["reverse"])
+                for w in winners:
+                    excluded.add(w[0])
+
+            if not winners:
+                rows.append({
+                    "grade": tier["grade"], "tier_name": tier["name"], "min_games": min_games,
+                    "suffix": tier["suffix"], "badge_name": tier["badge_name"],
+                    "rank": None, "name": None, "display": None, "games": None,
+                })
+            else:
+                for w in winners:
+                    rows.append({
+                        "grade": tier["grade"], "tier_name": tier["name"], "min_games": min_games,
+                        "suffix": tier["suffix"], "badge_name": tier["badge_name"],
+                        "rank": w[3], "name": w[0], "display": _fmt_award_value(metric, w[1]), "games": w[2],
+                    })
+
+        parts_result.append({"part_name": part["part_name"], "rows": rows})
+
+    return parts_result
+
+
+@mahjong_bp.route("/api/admin/compute_awards", methods=["POST"])
+@require_admin_api
+def compute_awards_api():
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "파일이 없습니다."}), 400
+
+    games, err = _parse_games_csv_for_awards(file.read())
+    if err:
+        return jsonify({"error": err}), 400
+
+    parts = _compute_awards(games)
+    return jsonify({"parts": parts, "game_count": len(games)})
+
+
+# ================== 시즌 결산 (아카이브 + 뱃지 세트 + 자동 부여 일괄 처리) ==================
+
+def _fetch_live_games_for_award_calc():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT created_at, player1_name, player2_name, player3_name, player4_name,
+               player1_score, player2_score, player3_score, player4_score
+        FROM games ORDER BY id ASC
+    """).fetchall()
+    conn.close()
+    return [
+        {
+            "created_at": r["created_at"] or "",
+            "names": [r["player1_name"], r["player2_name"], r["player3_name"], r["player4_name"]],
+            "scores": [r["player1_score"], r["player2_score"], r["player3_score"], r["player4_score"]],
+        }
+        for r in rows
+    ]
+
+
+def _existing_badge_blocks():
+    """뱃지를 100 단위(시즌)로 묶어서 반환합니다."""
+    conn = get_db()
+    rows = conn.execute("SELECT code, name FROM badges ORDER BY code ASC").fetchall()
+    conn.close()
+
+    groups = {}
+    for r in rows:
+        block = (r["code"] // 100) * 100
+        groups.setdefault(block, []).append(r["name"])
+
+    return [
+        {"block": block, "count": len(names), "sample_name": names[0] if names else ""}
+        for block, names in sorted(groups.items())
+    ]
+
+
+def _next_season_block():
+    conn = get_db()
+    row = conn.execute("SELECT MAX(code) AS m FROM badges WHERE code >= 2000 AND code < 9000").fetchone()
+    conn.close()
+    max_code = row["m"] if row else None
+    if max_code is None:
+        return 2000
+    return (max_code // 100) * 100 + 100
+
+
+@mahjong_bp.route("/api/admin/season_badge_blocks", methods=["GET"])
+@require_admin_api
+def season_badge_blocks_api():
+    return jsonify(_existing_badge_blocks())
+
+
+@mahjong_bp.route("/api/admin/season_wrap/create_archive", methods=["POST"])
+@require_admin_api
+def season_wrap_create_archive():
+    data = request.get_json(silent=True) or {}
+    archive_name = str(data.get("archive_name", "")).strip()
+    if not archive_name:
+        return jsonify({"error": "아카이브 이름을 입력해주세요."}), 400
+
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT created_at, player1_name, player2_name, player3_name, player4_name,
+               player1_score, player2_score, player3_score, player4_score
+        FROM games ORDER BY id ASC
+    """).fetchall()
+
+    if not rows:
+        conn.close()
+        return jsonify({"error": "현재 개인전 기록이 없습니다."}), 400
+
+    created_at = datetime.now().isoformat(timespec="minutes")
+    cur = conn.execute("INSERT INTO archives (name, created_at) VALUES (?, ?)", (archive_name, created_at))
+    archive_id = cur.lastrowid
+
+    for r in rows:
+        conn.execute("""
+            INSERT INTO archive_games (
+                archive_id, created_at,
+                player1_name, player2_name, player3_name, player4_name,
+                player1_score, player2_score, player3_score, player4_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            archive_id, r["created_at"],
+            r["player1_name"], r["player2_name"], r["player3_name"], r["player4_name"],
+            r["player1_score"], r["player2_score"], r["player3_score"], r["player4_score"],
+        ))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True, "archive_id": archive_id, "archive_name": archive_name, "game_count": len(rows),
+    })
+
+
+@mahjong_bp.route("/api/admin/season_wrap/create_season_badges", methods=["POST"])
+@require_admin_api
+def season_wrap_create_badges():
+    data = request.get_json(silent=True) or {}
+    season_label = str(data.get("season_label", "")).strip()
+    if not season_label:
+        return jsonify({"error": "시즌 이름을 입력해주세요."}), 400
+
+    block = _next_season_block()
+
+    entries = []
+    for part in AWARD_PARTS:
+        for tier in part["tiers"]:
+            entries.append((tier["suffix"], tier["badge_name"], tier["grade"]))
+    for m in MANUAL_SEASON_BADGES:
+        entries.append((m["suffix"], m["badge_name"], m["grade"]))
+
+    conn = get_db()
+    created = []
+    for suffix, badge_name, grade in entries:
+        code = block + suffix
+        full_name = f"{season_label} {badge_name}"
+        try:
+            conn.execute(
+                "INSERT INTO badges (code, name, grade, description) VALUES (?, ?, ?, ?)",
+                (code, full_name, grade, ""),
+            )
+            created.append({"code": code, "name": full_name, "grade": grade})
+        except sqlite3.IntegrityError:
+            pass  # 이미 있으면 건너뜀
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "block": block, "season_label": season_label, "created": created})
+
+
+@mahjong_bp.route("/api/admin/season_wrap/grant_awards", methods=["POST"])
+@require_admin_api
+def season_wrap_grant_awards():
+    data = request.get_json(silent=True) or {}
+    try:
+        block = int(data.get("block"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "뱃지 블록을 선택해주세요."}), 400
+
+    # 항상 현재(live) 개인전 기록 기준으로 계산합니다 (①에서 아카이브를 만들었는지 여부와 무관).
+    games = _fetch_live_games_for_award_calc()
+    if not games:
+        return jsonify({"error": "계산할 대국 기록이 없습니다."}), 400
+
+    parts = _compute_awards(games)
+
+    conn = get_db()
+    existing_codes = {r["code"] for r in conn.execute("SELECT code FROM badges").fetchall()}
+
+    granted = 0
+    duplicates = 0
+    missing_badge = 0
+    granted_at = datetime.now().isoformat(timespec="minutes")
+
+    for part in parts:
+        for row in part["rows"]:
+            if row["name"] is None:
+                continue
+            code = block + row["suffix"]
+            if code not in existing_codes:
+                missing_badge += 1
+                continue
+            exists = conn.execute(
+                "SELECT 1 FROM player_badges WHERE player_name = ? AND badge_code = ? LIMIT 1",
+                (row["name"], code),
+            ).fetchone()
+            if exists:
+                duplicates += 1
+                continue
+            conn.execute(
+                "INSERT INTO player_badges (player_name, badge_code, granted_at) VALUES (?, ?, ?)",
+                (row["name"], code, granted_at),
+            )
+            granted += 1
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True, "block": block, "game_count": len(games),
+        "granted": granted, "duplicates": duplicates, "missing_badge": missing_badge,
+        "parts": parts,
+    })
+
+
 # ================== 기본 페이지 ==================
 
 @mahjong_bp.route("/")

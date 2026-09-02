@@ -1871,6 +1871,278 @@ function setupAdminView() {
       });
     });
   }
+
+  // 수상자 자동 계산
+  let lastAwardsParts = null;
+  const awardsBtn = document.getElementById("awards-calc-btn");
+  const awardsCsvBtn = document.getElementById("awards-csv-btn");
+  if (awardsBtn) {
+    awardsBtn.addEventListener("click", async () => {
+      const input = document.getElementById("awards-csv-input");
+      const status = document.getElementById("awards-status");
+      const container = document.getElementById("awards-result-container");
+      if (!input || !input.files || !input.files.length) {
+        status.textContent = "CSV 파일을 선택해주세요.";
+        return;
+      }
+      status.textContent = "계산 중...";
+      container.innerHTML = "";
+      if (awardsCsvBtn) awardsCsvBtn.style.display = "none";
+      const fd = new FormData();
+      fd.append("file", input.files[0]);
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/compute_awards`, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        status.textContent = `총 ${data.game_count}국 기준으로 계산했습니다. (상위 등급 수상자는 하위 등급에서 자동 제외됩니다)`;
+        lastAwardsParts = data.parts;
+        renderAwardsResult(container, data.parts);
+        if (awardsCsvBtn) awardsCsvBtn.style.display = "";
+      } catch (e) {
+        status.textContent = "계산 실패: " + e.message;
+      }
+    });
+  }
+  if (awardsCsvBtn) {
+    awardsCsvBtn.addEventListener("click", () => {
+      if (!lastAwardsParts) return;
+      downloadCSV("수상자_선정.csv", awardsPartsToCSV(lastAwardsParts));
+    });
+  }
+
+  setupSeasonWrap();
+}
+
+// ======================= 수상자 CSV 내보내기 =======================
+function csvEscapeField(v) {
+  const s = String(v == null ? "" : v);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function awardsPartsToCSV(parts) {
+  const rows = [["파트", "등급", "시상", "순위", "이름", "기록", "대국 수"]];
+  parts.forEach(part => {
+    part.rows.forEach(r => {
+      rows.push([
+        part.part_name, r.grade, r.tier_name,
+        r.rank != null ? r.rank : "",
+        r.name || "",
+        r.display || "",
+        r.games != null ? r.games : "",
+      ]);
+    });
+  });
+  return rows.map(row => row.map(csvEscapeField).join(",")).join("\r\n");
+}
+
+function downloadCSV(filename, csvText) {
+  const blob = new Blob(["﻿" + csvText], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ======================= 시즌 결산 =======================
+function setupSeasonWrap() {
+  let swBlock = null;
+  let lastGrantParts = null;
+
+  const archiveBtn = document.getElementById("sw-archive-btn");
+  if (archiveBtn) {
+    archiveBtn.addEventListener("click", async () => {
+      const nameInput = document.getElementById("sw-archive-name");
+      const status = document.getElementById("sw-archive-status");
+      const name = nameInput.value.trim();
+      if (!name) { status.textContent = "아카이브 이름을 입력해주세요."; return; }
+      status.textContent = "처리 중...";
+      try {
+        const res = await fetchJSON(`${API_BASE}/api/admin/season_wrap/create_archive`, {
+          method: "POST", body: JSON.stringify({ archive_name: name }),
+        });
+        status.textContent = `"${res.archive_name}" 아카이브에 ${res.game_count}국 기록했습니다.`;
+        if (typeof reloadArchiveList === "function") reloadArchiveList();
+      } catch (e) {
+        status.textContent = "실패: " + e.message;
+      }
+    });
+  }
+
+  async function loadBlockOptions() {
+    const sel = document.getElementById("sw-block-select");
+    if (!sel) return;
+    try {
+      const blocks = await fetchJSON(`${API_BASE}/api/admin/season_badge_blocks`);
+      sel.innerHTML = '<option value="">선택 안 함</option>';
+      blocks.forEach(b => {
+        const opt = document.createElement("option");
+        opt.value = b.block;
+        opt.textContent = `${b.block}번대 (${b.sample_name}, ${b.count}개)`;
+        sel.appendChild(opt);
+      });
+    } catch (e) { /* 무시 */ }
+  }
+
+  const blockSelect = document.getElementById("sw-block-select");
+  if (blockSelect) {
+    blockSelect.addEventListener("change", () => {
+      swBlock = blockSelect.value ? Number(blockSelect.value) : null;
+      const codeInput = document.getElementById("sw-manual-code");
+      if (codeInput && swBlock) codeInput.value = swBlock + 61;
+      const status = document.getElementById("sw-badge-status");
+      if (status) status.textContent = swBlock ? `선택된 블록: ${swBlock}번대` : "";
+    });
+  }
+
+  const createBadgesBtn = document.getElementById("sw-create-badges-btn");
+  if (createBadgesBtn) {
+    createBadgesBtn.addEventListener("click", async () => {
+      const labelInput = document.getElementById("sw-season-label");
+      const status = document.getElementById("sw-badge-status");
+      const label = labelInput.value.trim();
+      if (!label) { status.textContent = "시즌 이름을 입력해주세요."; return; }
+      status.textContent = "생성 중...";
+      try {
+        const res = await fetchJSON(`${API_BASE}/api/admin/season_wrap/create_season_badges`, {
+          method: "POST", body: JSON.stringify({ season_label: label }),
+        });
+        swBlock = res.block;
+        status.textContent = `${res.block}번대로 뱃지 ${res.created.length}개를 생성했습니다.`;
+        const codeInput = document.getElementById("sw-manual-code");
+        if (codeInput) codeInput.value = swBlock + 61;
+        if (typeof reloadBadgeList === "function") reloadBadgeList();
+        loadBlockOptions();
+      } catch (e) {
+        status.textContent = "실패: " + e.message;
+      }
+    });
+  }
+
+  const grantBtn = document.getElementById("sw-grant-btn");
+  if (grantBtn) {
+    grantBtn.addEventListener("click", async () => {
+      const status = document.getElementById("sw-grant-status");
+      const resultDiv = document.getElementById("sw-grant-result");
+      const csvBtn = document.getElementById("sw-grant-csv-btn");
+      if (!swBlock) { status.textContent = "②에서 뱃지 블록을 먼저 선택하거나 생성해주세요."; return; }
+      status.textContent = "계산 및 부여 중...";
+      resultDiv.innerHTML = "";
+      if (csvBtn) csvBtn.style.display = "none";
+      try {
+        const res = await fetchJSON(`${API_BASE}/api/admin/season_wrap/grant_awards`, {
+          method: "POST",
+          body: JSON.stringify({ block: swBlock }),
+        });
+        status.textContent =
+          `${res.game_count}국 기준 계산 완료. 새로 ${res.granted}건 부여` +
+          (res.duplicates ? `, 이미 부여된 ${res.duplicates}건 건너뜀` : "") +
+          (res.missing_badge ? `, 뱃지가 없어 ${res.missing_badge}건 건너뜀` : "") + ".";
+        lastGrantParts = res.parts;
+        renderAwardsResult(resultDiv, res.parts);
+        if (csvBtn) csvBtn.style.display = "";
+        if (typeof reloadBadgeList === "function") reloadBadgeList();
+      } catch (e) {
+        status.textContent = "실패: " + e.message;
+      }
+    });
+  }
+
+  const grantCsvBtn = document.getElementById("sw-grant-csv-btn");
+  if (grantCsvBtn) {
+    grantCsvBtn.addEventListener("click", () => {
+      if (!lastGrantParts) return;
+      downloadCSV("시즌_결산_수상자.csv", awardsPartsToCSV(lastGrantParts));
+    });
+  }
+
+  const manualGrantBtn = document.getElementById("sw-manual-grant-btn");
+  if (manualGrantBtn) {
+    manualGrantBtn.addEventListener("click", async () => {
+      const codeInput = document.getElementById("sw-manual-code");
+      const playersInput = document.getElementById("sw-manual-players");
+      const status = document.getElementById("sw-manual-status");
+      const code = Number(codeInput.value);
+      const names = playersInput.value.split("\n").map(s => s.trim()).filter(Boolean);
+      if (!code) { status.textContent = "뱃지 코드를 입력해주세요."; return; }
+      if (!names.length) { status.textContent = "플레이어를 한 명 이상 입력해주세요."; return; }
+      status.textContent = "부여 중...";
+      let ok = 0, fail = 0;
+      for (const name of names) {
+        try {
+          await fetchJSON(`${API_BASE}/api/player_badges`, {
+            method: "POST",
+            body: JSON.stringify({ player_name: name, badge_code: code }),
+          });
+          ok++;
+        } catch (e) { fail++; }
+      }
+      status.textContent = `완료: ${ok}건 성공${fail ? `, ${fail}건 실패` : ""}.`;
+      playersInput.value = "";
+      if (typeof reloadBadgeList === "function") reloadBadgeList();
+    });
+  }
+
+  const swResetBtn = document.getElementById("sw-reset-btn");
+  if (swResetBtn) {
+    swResetBtn.addEventListener("click", () => {
+      showConfirm(
+        "①~④ 과정이 전부 정상적으로 끝났는지 확인하셨나요? 확인했다면 개인전 기록을 초기화합니다. 되돌릴 수 없습니다.",
+        async () => {
+          await fetchJSON(`${API_BASE}/api/admin/reset_games`, { method: "POST" });
+          loadGamesAndRanking();
+          const status = document.getElementById("sw-archive-status");
+          if (status) status.textContent += " (개인전 기록 초기화 완료)";
+        }
+      );
+    });
+  }
+
+  loadBlockOptions();
+}
+
+function renderAwardsResult(container, parts) {
+  container.innerHTML = "";
+  parts.forEach(part => {
+    const box = document.createElement("section");
+    box.className = "admin-panel";
+
+    const title = document.createElement("h3");
+    title.textContent = part.part_name;
+    box.appendChild(title);
+
+    const table = document.createElement("table");
+    table.className = "badge-table";
+    table.innerHTML =
+      "<thead><tr><th>등급</th><th>시상</th><th>순위</th><th>이름</th><th>기록</th><th>대국 수</th></tr></thead><tbody></tbody>";
+    const tbody = table.querySelector("tbody");
+    part.rows.forEach(r => {
+      const tr = document.createElement("tr");
+      if (r.name == null) {
+        tr.innerHTML = `
+          <td>${escapeHTML(r.grade)}</td>
+          <td>${escapeHTML(r.tier_name)}</td>
+          <td colspan="4" class="ranking-placeholder">조건(최소 ${r.min_games}판)을 만족하는 플레이어가 없습니다</td>
+        `;
+      } else {
+        tr.innerHTML = `
+          <td>${escapeHTML(r.grade)}</td>
+          <td>${escapeHTML(r.tier_name)}</td>
+          <td>${r.rank != null ? r.rank : "-"}</td>
+          <td>${escapeHTML(r.name)}</td>
+          <td>${escapeHTML(r.display)}</td>
+          <td>${r.games}</td>
+        `;
+      }
+      tbody.appendChild(tr);
+    });
+    box.appendChild(table);
+    container.appendChild(box);
+  });
 }
 
 async function reloadBadgeList() {

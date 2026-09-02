@@ -794,6 +794,106 @@
           </section>
         </div>
       </div>
+
+      <!-- 수상자 선정 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="awards">
+          <span class="admin-group-icon">▶</span>수상자 선정
+        </button>
+        <div class="admin-group-body" style="display:none;">
+          <section class="admin-panel">
+            <h3>시즌 수상자 자동 계산</h3>
+            <p class="hint-text">
+              대국 기록 CSV(내보내기 형식과 동일)를 업로드하면 시상별 수상자를 자동으로 계산합니다.<br>
+              마작대회 관련 시상과 역만의 증표는 자동 계산 대상이 아니라 직접 판정해주세요.
+            </p>
+            <div class="form-row">
+              <label>CSV 파일</label>
+              <input type="file" id="awards-csv-input" accept=".csv">
+            </div>
+            <button id="awards-calc-btn" type="button">계산하기</button>
+            <button id="awards-csv-btn" type="button" style="display:none;">CSV로 내보내기</button>
+            <p id="awards-status" class="hint-text" style="margin-top:6px;"></p>
+          </section>
+          <div id="awards-result-container"></div>
+        </div>
+      </div>
+
+      <!-- 시즌 결산 -->
+      <div class="admin-group">
+        <button type="button" class="admin-group-header" data-admin-group="season-wrap">
+          <span class="admin-group-icon">▶</span>시즌 결산
+        </button>
+        <div class="admin-group-body" style="display:none;">
+          <section class="admin-panel">
+            <p class="hint-text" style="color:#c0392b; font-weight:600; margin-bottom:0;">
+              ⚠️ 시작하기 전에 games.db 파일을 꼭 백업해두세요. (여러 단계가 데이터를 바꾸는 작업이라, 문제가 생겨도 백업이 있으면 되돌릴 수 있습니다)
+            </p>
+          </section>
+          <section class="admin-panel">
+            <h3>① 현재 시즌 아카이브에 기록</h3>
+            <p class="hint-text">현재 개인전 기록 전체를 새 아카이브로 저장합니다.</p>
+            <div class="form-row">
+              <label>아카이브 이름</label>
+              <input type="text" id="sw-archive-name" placeholder="예: 26 시즌 2">
+            </div>
+            <button id="sw-archive-btn" type="button">아카이브에 추가</button>
+            <p id="sw-archive-status" class="hint-text" style="margin-top:6px;"></p>
+          </section>
+
+          <section class="admin-panel">
+            <h3>② 뱃지 목록 확인</h3>
+            <p class="hint-text">이번 시즌 뱃지가 이미 있으면 아래에서 선택하고, 없으면 이름을 입력해 새로 생성하세요.</p>
+            <div class="form-row">
+              <label>기존 블록</label>
+              <select id="sw-block-select">
+                <option value="">선택 안 함</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>새 시즌 이름</label>
+              <input type="text" id="sw-season-label" placeholder="예: 26 시즌 2">
+            </div>
+            <button id="sw-create-badges-btn" type="button">새로 생성</button>
+            <p id="sw-badge-status" class="hint-text" style="margin-top:6px;"></p>
+          </section>
+
+          <section class="admin-panel">
+            <h3>③ 수상자 선정 계산 → 자동 뱃지 부여</h3>
+            <p class="hint-text">
+              항상 현재 개인전 기록 기준으로 계산해서, ②에서 선택/생성한 뱃지 블록으로 자동 부여합니다.<br>
+              마작대회 관련 시상과 역만의 증표는 여기서 처리되지 않으니 ④에서 직접 입력해주세요.
+            </p>
+            <button id="sw-grant-btn" type="button">계산 후 뱃지 부여</button>
+            <button id="sw-grant-csv-btn" type="button" style="display:none;">CSV로 내보내기</button>
+            <p id="sw-grant-status" class="hint-text" style="margin-top:6px;"></p>
+            <div id="sw-grant-result"></div>
+          </section>
+
+          <section class="admin-panel">
+            <h3>④ 남은 뱃지 부여 (역만의 증표)</h3>
+            <p class="hint-text">역만의 증표는 자동 계산 대상이 아니므로 직접 입력해서 부여하세요. (한 줄에 한 명씩)</p>
+            <div class="form-row">
+              <label>뱃지 코드</label>
+              <input type="number" id="sw-manual-code" placeholder="예: 2261">
+            </div>
+            <div class="form-row" style="align-items:flex-start;">
+              <label>플레이어</label>
+              <textarea id="sw-manual-players" rows="3" style="flex:1; font-size:13px; padding:4px 6px; border-radius:6px; border:1px solid #ccc;" placeholder="한 줄에 한 명씩 입력"></textarea>
+            </div>
+            <button id="sw-manual-grant-btn" type="button">부여하기</button>
+            <p id="sw-manual-status" class="hint-text" style="margin-top:6px;"></p>
+          </section>
+
+          <section class="admin-panel">
+            <h3>⑤ 개인전 기록 초기화</h3>
+            <p class="hint-text" style="color:#c0392b; font-weight:600;">
+              ⚠️ ①~④ 과정이 전부 정상적으로 끝났는지 반드시 확인한 뒤에 눌러주세요. 초기화하면 되돌릴 수 없습니다.
+            </p>
+            <button id="sw-reset-btn" class="danger-btn">개인전 기록 전체 삭제</button>
+          </section>
+        </div>
+      </div>
     </div>
   </div>
   {% endif %}
